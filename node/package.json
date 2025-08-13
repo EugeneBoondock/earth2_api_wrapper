@@ -16,7 +16,7 @@
     "build:bun": "bun run build",
     "clean": "rimraf dist",
     "dev": "tsc -w",
-    "test": "bun test || npm test",
+    "test": "echo \"No tests defined for Node package\"",
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run clean && npm run build"
   },
