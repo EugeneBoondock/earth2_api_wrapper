@@ -198,7 +198,9 @@ def market(
     table.add_column("Total Price")
     table.add_column("Price/Tile")
 
-    for item in landfields[:items]:  # Show requested number of items
+    items_limit = int(items)
+
+    for item in landfields[:items_limit]:  # Show requested number of items
         description = (item.get("description") or "N/A")
         if len(description) > 30:
             description = description[:27] + "..."
@@ -224,8 +226,8 @@ def market(
 
     console.print(table)
 
-    if len(landfields) > items:
-        log_info(f"Showing first {items} of {len(landfields)} results. Use --json to see all.")
+    if len(landfields) > items_limit:
+        log_info(f"Showing first {items_limit} of {len(landfields)} results. Use --json to see all.")
 
 
 @app.command()
@@ -261,7 +263,10 @@ def resources(property_id: str):
     except httpx.HTTPStatusError as e:
         status = e.response.status_code if e.response is not None else None
         if status == 401:
-            log_error("401 Unauthorized from resources API. This endpoint typically requires a verified (KYC) Earth2 account and an authenticated session. Please verify your account and log in, then try again.")
+            log_error(
+                "401 Unauthorized from resources API. This endpoint typically requires a verified (KYC) Earth2 account "
+                "and an authenticated session. Please verify your account and log in, then try again."
+            )
         else:
             log_error(f"Resources request failed: HTTP {status}")
     except Exception as e:
