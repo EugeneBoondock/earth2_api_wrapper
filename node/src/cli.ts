@@ -42,7 +42,7 @@ function logInfo(message: string): void {
 
 program
   .command('login')
-  .description('Authenticate with Earth2 (stores credentials in environment)')
+  .description('Authenticate with Earth2 using Kinde OAuth flow')
   .option('-e, --email <email>', 'Email address')
   .option('-p, --password <password>', 'Password')
   .action(async (opts) => {
@@ -55,14 +55,52 @@ program
       process.exit(1);
     }
     
-    logInfo('Authenticating with Earth2...');
+    logInfo('Starting Earth2 Kinde OAuth authentication flow...');
+    logInfo('This may take a moment as we navigate through multiple redirects...');
+    
     const result = await client.authenticate(email, password);
     
     if (result.success) {
       logSuccess(result.message);
+      logInfo('Session cookies have been stored for this session.');
       logInfo('You can now use authenticated endpoints like "e2 my-favorites"');
+      
+      // Test the session
+      logInfo('Testing session validity...');
+      const sessionCheck = await client.checkSessionValidity();
+      if (sessionCheck.isValid) {
+        logSuccess('Session is valid and ready to use!');
+      } else {
+        logError('Session validation failed. You may need to try again.');
+      }
     } else {
       logError(result.message);
+      logError('OAuth authentication failed. Please check your credentials and try again.');
+      process.exit(1);
+    }
+  });
+
+program
+  .command('check-session')
+  .description('Check if current session is still valid')
+  .action(async () => {
+    const client = new Earth2Client({ cookieJar: process.env.E2_COOKIE, csrfToken: process.env.E2_CSRF });
+    
+    if (!client['cookieJar']) {
+      logError('No session found. Please run "e2 login" first.');
+      process.exit(1);
+    }
+    
+    logInfo('Checking session validity...');
+    const result = await client.checkSessionValidity();
+    
+    if (result.isValid) {
+      logSuccess('Session is valid!');
+    } else {
+      logError('Session is invalid or expired.');
+      if (result.needsReauth) {
+        logInfo('Please run "e2 login" to re-authenticate.');
+      }
       process.exit(1);
     }
   });

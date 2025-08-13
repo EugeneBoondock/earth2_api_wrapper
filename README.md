@@ -146,8 +146,9 @@ Both Node.js and Python versions include CLI tools.
 ### Node.js CLI
 
 ```bash
-# Authentication
+# Authentication (OAuth flow)
 e2 login --email your@email.com --password yourpassword
+e2 check-session         # Verify session is still valid
 
 # Data commands with beautiful formatted output
 e2 trending              # 🌍 Trending places in a nice table
@@ -169,8 +170,9 @@ e2 my-favorites  # Requires auth
 ### Python CLI
 
 ```bash
-# Authentication
+# Authentication (OAuth flow)
 e2 login --email your@email.com --password yourpassword
+e2 check-session         # Verify session is still valid
 
 # Data commands with beautiful formatted output
 e2 trending              # 🌍 Trending places in a nice table
@@ -197,10 +199,10 @@ The wrapper provides multiple ways to authenticate with Earth2 for accessing pri
 
 ### Method 1: CLI Login (Recommended)
 
-The easiest way is to use the built-in login command:
+The wrapper handles Earth2's complex Kinde OAuth authentication flow automatically:
 
 ```bash
-# Interactive login
+# Interactive login with OAuth flow
 e2 login --email your@email.com --password yourpassword
 
 # Or using environment variables
@@ -209,26 +211,42 @@ export E2_PASSWORD="yourpassword"
 e2 login
 ```
 
+The login process will:
+1. Navigate through Earth2's OAuth redirects
+2. Handle the Kinde authentication flow
+3. Extract and store session cookies
+4. Validate the session
+
 After successful login, you can use authenticated endpoints:
 ```bash
 e2 my-favorites
+e2 check-session  # Verify your session is still valid
 ```
 
 ### Method 2: Programmatic Authentication
+
+The wrapper automatically handles the complex OAuth flow programmatically:
 
 #### Node.js
 ```typescript
 import { Earth2Client } from 'earth2-api-wrapper';
 
 const client = new Earth2Client();
+
+// Perform OAuth authentication
 const result = await client.authenticate('your@email.com', 'yourpassword');
 
 if (result.success) {
-  console.log('✓ Authenticated successfully!');
-  // Now you can use authenticated endpoints
-  const favorites = await client.getMyFavorites();
+  console.log('✓ OAuth authentication successful!');
+  
+  // Check session validity
+  const sessionCheck = await client.checkSessionValidity();
+  if (sessionCheck.isValid) {
+    // Now you can use authenticated endpoints
+    const favorites = await client.getMyFavorites();
+  }
 } else {
-  console.error('✗ Authentication failed:', result.message);
+  console.error('✗ OAuth authentication failed:', result.message);
 }
 ```
 
@@ -237,14 +255,20 @@ if (result.success) {
 from earth2_api_wrapper import Earth2Client
 
 client = Earth2Client()
+
+# Perform OAuth authentication
 result = client.authenticate('your@email.com', 'yourpassword')
 
 if result['success']:
-    print('✓ Authenticated successfully!')
-    # Now you can use authenticated endpoints
-    favorites = client.get_my_favorites()
+    print('✓ OAuth authentication successful!')
+    
+    # Check session validity
+    session_check = client.check_session_validity()
+    if session_check['isValid']:
+        # Now you can use authenticated endpoints
+        favorites = client.get_my_favorites()
 else:
-    print('✗ Authentication failed:', result['message'])
+    print('✗ OAuth authentication failed:', result['message'])
 ```
 
 ### Method 3: Manual Cookie/Token Setup

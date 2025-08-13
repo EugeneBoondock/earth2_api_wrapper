@@ -42,7 +42,7 @@ def login(
     email: Optional[str] = typer.Option(None, "--email", "-e", help="Email address"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password", hide_input=True)
 ):
-    """Authenticate with Earth2"""
+    """Authenticate with Earth2 using Kinde OAuth flow"""
     client = Earth2Client()
     
     email = email or os.getenv("E2_EMAIL")
@@ -52,14 +52,47 @@ def login(
         log_error("Email and password are required. Use --email and --password or set E2_EMAIL and E2_PASSWORD environment variables.")
         raise typer.Exit(1)
     
-    log_info("Authenticating with Earth2...")
+    log_info("Starting Earth2 Kinde OAuth authentication flow...")
+    log_info("This may take a moment as we navigate through multiple redirects...")
+    
     result = client.authenticate(email, password)
     
     if result["success"]:
         log_success(result["message"])
+        log_info("Session cookies have been stored for this session.")
         log_info('You can now use authenticated endpoints like "e2 my-favorites"')
+        
+        # Test the session
+        log_info("Testing session validity...")
+        session_check = client.check_session_validity()
+        if session_check["isValid"]:
+            log_success("Session is valid and ready to use!")
+        else:
+            log_error("Session validation failed. You may need to try again.")
     else:
         log_error(result["message"])
+        log_error("OAuth authentication failed. Please check your credentials and try again.")
+        raise typer.Exit(1)
+
+
+@app.command()
+def check_session():
+    """Check if current session is still valid"""
+    client = _client_from_env()
+    
+    if not client.cookie_jar:
+        log_error('No session found. Please run "e2 login" first.')
+        raise typer.Exit(1)
+    
+    log_info("Checking session validity...")
+    result = client.check_session_validity()
+    
+    if result["isValid"]:
+        log_success("Session is valid!")
+    else:
+        log_error("Session is invalid or expired.")
+        if result["needsReauth"]:
+            log_info('Please run "e2 login" to re-authenticate.')
         raise typer.Exit(1)
 
 

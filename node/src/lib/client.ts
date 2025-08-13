@@ -16,73 +16,288 @@ export class Earth2Client {
   setCookieJar(jar: string | undefined) { this.cookieJar = jar; }
   setCsrfToken(token: string | undefined) { this.csrfToken = token; }
 
-  // Authenticate with email/password to get cookies and CSRF token
+  // Helper to normalize Earth2's quirky OAuth URLs
+  private normalizeAuthUrl(raw: string): string {
+    let url = raw;
+    if (url.startsWith('/')) {
+      url = `https://auth.earth2.io${url}`;
+    } else if (!url.startsWith('http')) {
+      url = `https://auth.earth2.io/${url}`;
+    }
+    // Replace illegal psid: with psid=
+    url = url.replace('psid:', 'psid=');
+    return encodeURI(url);
+  }
+
+  // Authenticate with email/password using Earth2's Kinde OAuth flow
   async authenticate(email: string, password: string): Promise<{ success: boolean; message: string }> {
     try {
-      // First, get the login page to extract CSRF token
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      let allCookies: string[] = [];
+
+      // Step 1: Start OAuth flow by visiting the main login page
       const loginPageResponse = await this.fetchImpl('https://app.earth2.io/login', {
         method: 'GET',
         headers: {
-          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        }
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
+        redirect: 'manual'
       });
 
-      if (!loginPageResponse.ok) {
-        return { success: false, message: `Failed to load login page: ${loginPageResponse.status}` };
+      const loginCookies = loginPageResponse.headers.get('set-cookie');
+      if (loginCookies) allCookies.push(loginCookies);
+
+      // Step 2: Handle the first redirect (301 to /login/)
+      let locationHeader = loginPageResponse.headers.get('location');
+      if (!locationHeader) {
+        return { success: false, message: 'No redirect found from login page' };
       }
 
-      const loginPageText = await loginPageResponse.text();
-      const csrfMatch = loginPageText.match(/<meta name="csrf-token" content="([^"]+)"/);
-      const csrfToken = csrfMatch?.[1];
-
-      if (!csrfToken) {
-        return { success: false, message: 'Could not extract CSRF token from login page' };
+      if (locationHeader.startsWith('/')) {
+        locationHeader = `https://app.earth2.io${locationHeader}`;
       }
 
-      // Extract cookies from login page
-      const loginCookies = loginPageResponse.headers.get('set-cookie') || '';
+      const step2Response = await this.fetchImpl(locationHeader, {
+        method: 'GET',
+        headers: {
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Cookie': allCookies.join('; '),
+        },
+        redirect: 'manual'
+      });
 
-      // Now attempt login
-      const loginResponse = await this.fetchImpl('https://app.earth2.io/login', {
+      const step2Cookies = step2Response.headers.get('set-cookie');
+      if (step2Cookies) allCookies.push(step2Cookies);
+
+      // Step 3: Follow the OAuth redirect (302 to auth.earth2.io)
+      const oauthUrl = step2Response.headers.get('location');
+      if (!oauthUrl) {
+        return { success: false, message: 'No OAuth redirect found from /login/ page' };
+      }
+
+      const oauthResponse = await this.fetchImpl(oauthUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Cookie': allCookies.join('; '),
+        },
+        redirect: 'manual'
+      });
+
+      const oauthCookies = oauthResponse.headers.get('set-cookie');
+      if (oauthCookies) allCookies.push(oauthCookies);
+
+      // Step 4: Follow redirects to get to the email form
+      let currentResponse = oauthResponse;
+      let redirectCount = 0;
+      while (currentResponse.status >= 300 && currentResponse.status < 400 && redirectCount < 5) {
+        const nextUrlRaw = currentResponse.headers.get('location');
+        if (!nextUrlRaw) break;
+        const nextUrl = this.normalizeAuthUrl(nextUrlRaw);
+        
+        currentResponse = await this.fetchImpl(nextUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cookie': allCookies.join('; '),
+          },
+          redirect: 'manual'
+        });
+
+        const redirectCookies = currentResponse.headers.get('set-cookie');
+        if (redirectCookies) allCookies.push(redirectCookies);
+        redirectCount++;
+      }
+
+      // Step 5: Extract and submit email form
+      const emailPageHtml = await currentResponse.text();
+      let emailFormAction = currentResponse.url;
+      
+      const formMatch = emailPageHtml.match(/<form[^>]*action=['"](.*?)['"][^>]*>/);
+      if (formMatch) {
+        emailFormAction = this.normalizeAuthUrl(formMatch[1]);
+      }
+
+      // Extract hidden fields
+      const hiddenInputs = emailPageHtml.match(/<input[^>]*type=['"](hidden|csrf)['"][^>]*>/g) || [];
+      const formData = [`email=${encodeURIComponent(email)}`];
+      
+      for (const input of hiddenInputs) {
+        const nameMatch = input.match(/name=['"](.*?)['"]/);
+        const valueMatch = input.match(/value=['"](.*?)['"]/);
+        if (nameMatch && valueMatch) {
+          formData.push(`${encodeURIComponent(nameMatch[1])}=${encodeURIComponent(valueMatch[1])}`);
+        }
+      }
+
+      const emailResponse = await this.fetchImpl(emailFormAction, {
         method: 'POST',
         headers: {
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
           'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
-          'X-CSRF-TOKEN': csrfToken,
-          'Cookie': loginCookies,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          'Origin': 'https://auth.earth2.io',
+          'Referer': currentResponse.url,
+          'Cookie': allCookies.join('; '),
         },
-        body: new URLSearchParams({
-          email,
-          password,
-          _token: csrfToken
-        }).toString()
+        body: formData.join('&'),
+        redirect: 'manual'
       });
 
-      // Extract session cookies
-      const sessionCookies = loginResponse.headers.get('set-cookie');
-      
-      if (loginResponse.ok && sessionCookies) {
-        // Parse and store session cookies
-        this.cookieJar = sessionCookies;
-        this.csrfToken = csrfToken;
+      const emailCookies = emailResponse.headers.get('set-cookie');
+      if (emailCookies) allCookies.push(emailCookies);
+
+      // Step 6: Follow redirects to password page
+      let passwordPageResponse = emailResponse;
+      redirectCount = 0;
+      while (passwordPageResponse.status >= 300 && passwordPageResponse.status < 400 && redirectCount < 5) {
+        const nextUrlRaw = passwordPageResponse.headers.get('location');
+        if (!nextUrlRaw) break;
+        const nextUrl = this.normalizeAuthUrl(nextUrlRaw);
         
-        return { 
-          success: true, 
-          message: 'Authentication successful! Cookies and CSRF token have been set.' 
-        };
-      } else {
-        return { 
-          success: false, 
-          message: `Login failed: ${loginResponse.status}. Please check your credentials.` 
-        };
+        passwordPageResponse = await this.fetchImpl(nextUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cookie': allCookies.join('; '),
+          },
+          redirect: 'manual'
+        });
+
+        const passwordRedirectCookies = passwordPageResponse.headers.get('set-cookie');
+        if (passwordRedirectCookies) allCookies.push(passwordRedirectCookies);
+        redirectCount++;
       }
+
+      // Step 7: Extract and submit password form
+      const passwordPageHtml = await passwordPageResponse.text();
+      let passwordFormAction = passwordPageResponse.url;
+      
+      const passwordFormMatch = passwordPageHtml.match(/<form[^>]*action=['"](.*?)['"][^>]*>/);
+      if (passwordFormMatch) {
+        passwordFormAction = this.normalizeAuthUrl(passwordFormMatch[1]);
+      }
+
+      const passwordHiddenInputs = passwordPageHtml.match(/<input[^>]*type=['"](hidden|csrf)['"][^>]*>/g) || [];
+      const passwordFormData = [`password=${encodeURIComponent(password)}`];
+      
+      for (const input of passwordHiddenInputs) {
+        const nameMatch = input.match(/name=['"](.*?)['"]/);
+        const valueMatch = input.match(/value=['"](.*?)['"]/);
+        if (nameMatch && valueMatch) {
+          passwordFormData.push(`${encodeURIComponent(nameMatch[1])}=${encodeURIComponent(valueMatch[1])}`);
+        }
+      }
+
+      const passwordResponse = await this.fetchImpl(passwordFormAction, {
+        method: 'POST',
+        headers: {
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Origin': 'https://auth.earth2.io',
+          'Referer': passwordPageResponse.url,
+          'Cookie': allCookies.join('; '),
+        },
+        body: passwordFormData.join('&'),
+        redirect: 'manual'
+      });
+
+      const passwordCookies = passwordResponse.headers.get('set-cookie');
+      if (passwordCookies) allCookies.push(passwordCookies);
+
+      // Step 8: Follow OAuth callback chain back to app.earth2.io
+      let currentUrl = passwordResponse.headers.get('location');
+      redirectCount = 0;
+      while (currentUrl && redirectCount < 10) {
+        if (currentUrl.startsWith('/')) {
+          currentUrl = `https://app.earth2.io${currentUrl}`;
+        }
+        
+        const redirectResponse = await this.fetchImpl(currentUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cookie': allCookies.join('; '),
+          },
+          redirect: 'manual'
+        });
+
+        const redirectCookies = redirectResponse.headers.get('set-cookie');
+        if (redirectCookies) allCookies.push(redirectCookies);
+
+        currentUrl = redirectResponse.headers.get('location');
+        redirectCount++;
+
+        if (currentUrl && currentUrl.includes('app.earth2.io')) {
+          break;
+        }
+      }
+
+      if (redirectCount >= 10) {
+        return { success: false, message: 'Too many redirects during OAuth flow' };
+      }
+
+      // Store final cookies
+      this.cookieJar = allCookies.join('; ');
+      
+      return { 
+        success: true, 
+        message: 'Authentication successful! OAuth flow completed and cookies have been set.' 
+      };
+
     } catch (error) {
       return { 
         success: false, 
         message: `Authentication error: ${error instanceof Error ? error.message : String(error)}` 
       };
+    }
+  }
+
+  // Check if current session is still valid
+  async checkSessionValidity(): Promise<{ isValid: boolean; needsReauth: boolean }> {
+    if (!this.cookieJar) {
+      return { isValid: false, needsReauth: true };
+    }
+
+    try {
+      // Test session by calling a simple endpoint
+      const testResponse = await this.fetchImpl('https://r.earth2.io/avatar_sales?page=1&perPage=12', {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
+          'Accept': 'application/json, text/plain, */*',
+          'Cookie': this.cookieJar,
+          'Referer': 'https://app.earth2.io/',
+          'Origin': 'https://app.earth2.io'
+        }
+      });
+
+      if (testResponse.status === 401 || testResponse.status === 403) {
+        return { isValid: false, needsReauth: true };
+      }
+
+      return { isValid: true, needsReauth: false };
+
+    } catch (error) {
+      return { isValid: false, needsReauth: true };
     }
   }
 
