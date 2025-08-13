@@ -1,4 +1,4 @@
-export * from './lib/client';
-export * from './lib/types';
+export * from './lib/client.js';
+export * from './lib/types.js';
 
 

@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { Earth2Client } from './lib/client';
+import { Earth2Client } from './lib/client.js';
 
 const program = new Command();
 program

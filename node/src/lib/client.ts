@@ -1,4 +1,4 @@
-import { LeaderboardQuery, MarketItemSimplified, MarketSearchQuery, ResourcesResponse, TrendingPlace, UserInfo, Favorite } from './types';
+import { LeaderboardQuery, MarketItemSimplified, MarketSearchQuery, ResourcesResponse, TrendingPlace, UserInfo, Favorite } from './types.js';
 
 type FetchLike = (url: string, init?: any) => Promise<any>;
 
