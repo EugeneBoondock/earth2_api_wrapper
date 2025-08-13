@@ -13,7 +13,11 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:bun": "bun run build",
     "clean": "rimraf dist",
+    "dev": "tsc -w",
+    "test": "bun test || npm test",
+    "start": "node dist/cli.js",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
@@ -25,7 +29,8 @@
   "author": "",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "bun": ">=1.0.0"
   },
   "dependencies": {
     "commander": "^12.1.0",

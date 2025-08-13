@@ -40,9 +40,25 @@ Unofficial Earth2 API wrapper library and CLI tools for Node.js/TypeScript and P
 
 ### Node.js/TypeScript
 
+**Direct from GitHub (Recommended):**
+```bash
+# Install directly from GitHub
+npm install https://github.com/EugeneBoondock/earth2_api_wrapper.git#main:node
+
+# Or with Bun
+bun install https://github.com/EugeneBoondock/earth2_api_wrapper.git#main:node
+
+# For global CLI access
+npm install -g https://github.com/EugeneBoondock/earth2_api_wrapper.git#main:node
+```
+
+**From npm (when published):**
 ```bash
 # Install from npm
 npm install earth2-api-wrapper
+
+# Or with Bun
+bun install earth2-api-wrapper
 
 # Or install globally for CLI access
 npm install -g earth2-api-wrapper
@@ -50,11 +66,20 @@ npm install -g earth2-api-wrapper
 
 ### Python
 
+**Direct from GitHub (Recommended):**
+```bash
+# Install directly from GitHub
+pip install git+https://github.com/EugeneBoondock/earth2_api_wrapper.git#subdirectory=python
+```
+
+**From PyPI (when published):**
 ```bash
 # Install from PyPI
 pip install earth2-api-wrapper
+```
 
-# Or for development
+**For development:**
+```bash
 git clone https://github.com/EugeneBoondock/earth2_api_wrapper.git
 cd earth2_api_wrapper/python
 pip install -e .
@@ -232,11 +257,20 @@ users = client.get_users(['user-id-1', 'user-id-2'])
 
 ### Node.js Development
 
+**With npm:**
 ```bash
 cd node
 npm install
 npm run build
 npm test  # If tests are available
+```
+
+**With Bun:**
+```bash
+cd node
+bun install
+bun run build
+bun test  # If tests are available
 ```
 
 ### Python Development
