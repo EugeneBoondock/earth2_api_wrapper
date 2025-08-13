@@ -1,0 +1,41 @@
+{
+  "name": "earth2-api-wrapper",
+  "version": "0.1.0",
+  "description": "Unofficial Earth2 API wrapper with CLI (Node.js). Excludes raiding/dispensing/charging/jewel/civilian automation.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "e2": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "earth2",
+    "api",
+    "wrapper",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "node-html-parser": "^6.1.13",
+    "undici": "^7.2.0"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}
+
+
