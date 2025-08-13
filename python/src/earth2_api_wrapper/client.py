@@ -310,7 +310,7 @@ class Earth2Client:
 
     def get_landing_metrics(self) -> Dict[str, Any]:
         """Get landing page metrics"""
-        return self._get_json("https://app.earth2.io/api/v1/metrics/landing_page")
+        return self._get_json("https://r.earth2.io/landing/metrics")
 
     def get_trending_places(self, days: int = 30) -> Dict[str, Any]:
         """Get trending places"""
@@ -318,11 +318,11 @@ class Earth2Client:
 
     def get_territory_release_winners(self) -> Dict[str, Any]:
         """Get territory release winners"""
-        return self._get_json("https://app.earth2.io/api/v1/territory_release_winners")
+        return self._get_json("https://r.earth2.io/landing/territory_release_winners")
 
     def get_property(self, property_id: str) -> Dict[str, Any]:
         """Get property details by ID"""
-        return self._get_json(f"https://app.earth2.io/api/v1/property/{property_id}")
+        return self._get_json(f"https://r.earth2.io/landfields/{property_id}")
 
     def search_market(
         self,
@@ -362,40 +362,58 @@ class Earth2Client:
 
         return self._get_json(full_url)
 
-    def get_leaderboard(
-        self,
-        type: str = "players",  # noqa: A002
-        sort_by: str = "tiles_count",
-        country: Optional[str] = None,
-        continent: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Get leaderboard"""
-        params = {"type": type, "sort_by": sort_by}
-        if country:
-            params["country"] = country
-        if continent:
-            params["continent"] = continent
+    def get_market_floor(self, params: Dict[str, str]) -> Dict[str, Any]:
+        """Get market floor price per tile"""
+        url = "https://r.earth2.io/marketplace"
+        query_params = {
+            "items": "24",
+            "page": "1",
+            "search": "",
+            "sorting": "price_per_tile"
+        }
 
-        query_string = "&".join(f"{k}={v}" for k, v in params.items())
-        return self._get_json(f"https://app.earth2.io/api/v1/leaderboard?{query_string}")
+        if params.get("country"):
+            query_params["country"] = params["country"]
+        if params.get("tileCount"):
+            query_params["tileCount"] = params["tileCount"]
+        if params.get("landfieldTier"):
+            query_params["landfieldTier"] = params["landfieldTier"]
+        if params.get("tileClass") and params.get("landfieldTier") == "1":
+            query_params["tileClass"] = params["tileClass"]
+        query_string = "&".join(f"{k}={v}" for k, v in query_params.items())
+        return self._get_json(f"{url}?{query_string}")
+
+    def get_leaderboard_players(self, **params) -> Dict[str, Any]:
+        """Get players leaderboard"""
+        query_string = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
+        url = "https://r.earth2.io/leaderboards/players"
+        return self._get_json(f"{url}?{query_string}" if query_string else url)
+
+    def get_leaderboard_countries(self, **params) -> Dict[str, Any]:
+        """Get countries leaderboard"""
+        query_string = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
+        url = "https://r.earth2.io/leaderboards/landfield_countries"
+        return self._get_json(f"{url}?{query_string}" if query_string else url)
+
+    def get_leaderboard_player_countries(self, **params) -> Dict[str, Any]:
+        """Get player countries leaderboard"""
+        query_string = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
+        url = "https://r.earth2.io/leaderboards/player_countries"
+        return self._get_json(f"{url}?{query_string}" if query_string else url)
 
     def get_avatar_sales(self) -> Dict[str, Any]:
         """Get avatar sales data"""
-        return self._get_json("https://app.earth2.io/api/v1/avatar_sales")
+        return self._get_json("https://r.earth2.io/avatar_sales")
 
     def get_user_info(self, user_id: str) -> Dict[str, Any]:
         """Get user information by ID"""
-        return self._get_json(f"https://app.earth2.io/api/v1/user/{user_id}")
+        return self._get_json(f"https://app.earth2.io/api/v2/user_info/{user_id}")
 
     def get_users(self, user_ids: List[str]) -> Dict[str, Any]:
         """Get multiple users by IDs"""
-        user_ids_str = ",".join(user_ids)
-        return self._get_json(f"https://app.earth2.io/api/v1/users?ids={user_ids_str}")
-
-    def get_my_favorites(self) -> Dict[str, Any]:
-        """Get user's favorite properties (requires authentication)"""
-        return self._get_json("https://app.earth2.io/api/v1/user/favorites")
+        user_ids_str = "&".join(f"ids={user_id}" for user_id in user_ids)
+        return self._get_json(f"https://app.earth2.io/users?{user_ids_str}")
 
     def get_resources(self, property_id: str) -> Dict[str, Any]:
         """Get property resources by ID"""
-        return self._get_json(f"https://app.earth2.io/api/v1/property/{property_id}/resources")
+        return self._get_json(f"https://resources.earth2.io/v1/landfields/{property_id}/resources")

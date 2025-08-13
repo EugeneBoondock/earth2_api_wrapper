@@ -63,7 +63,7 @@ def login(
     if result["success"]:
         log_success(result["message"])
         log_info("Session cookies have been stored for this session.")
-        log_info('You can now use authenticated endpoints like "e2 my-favorites"')
+        log_info('Session is now ready for authenticated operations.')
 
         # Test the session
         log_info("Testing session validity...")
@@ -210,7 +210,7 @@ def market(
         price = item.get("price", 0)
         tile_count = item.get("tileCount", 0)
         ppt = price / tile_count if tile_count > 0 else 0
-        
+
         table.add_row(
             description,
             location,
@@ -228,14 +228,26 @@ def market(
 
 
 @app.command()
-def leaderboard(
-    type: str = typer.Option("players"),  # noqa: A002
-    sort_by: str = typer.Option("tiles_count"),
-    country: str = typer.Option(None),
-    continent: str = typer.Option(None),
-):
+def leaderboard_players(**params):
+    """Get players leaderboard"""
     client = _client_from_env()
-    res = client.get_leaderboard(type, sort_by=sort_by, country=country, continent=continent)
+    res = client.get_leaderboard_players(**params)
+    typer.echo(json.dumps(res, indent=2))
+
+
+@app.command()
+def leaderboard_countries(**params):
+    """Get countries leaderboard"""
+    client = _client_from_env()
+    res = client.get_leaderboard_countries(**params)
+    typer.echo(json.dumps(res, indent=2))
+
+
+@app.command()
+def leaderboard_player_countries(**params):
+    """Get player countries leaderboard"""
+    client = _client_from_env()
+    res = client.get_leaderboard_player_countries(**params)
     typer.echo(json.dumps(res, indent=2))
 
 
@@ -264,13 +276,6 @@ def user(user_id: str):
 def users(user_ids: List[str] = typer.Argument(..., help="List of user IDs")):
     client = _client_from_env()
     res = client.get_users(user_ids)
-    typer.echo(json.dumps(res, indent=2))
-
-
-@app.command()
-def my_favorites():
-    client = _client_from_env()
-    res = client.get_my_favorites()
     typer.echo(json.dumps(res, indent=2))
 
 
