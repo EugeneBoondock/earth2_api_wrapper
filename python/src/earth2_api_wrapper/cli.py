@@ -26,6 +26,7 @@ def _to_float(value: object) -> float:
     except Exception:
         return 0.0
 
+
 app = typer.Typer(help="Earth2 API CLI (Python)")
 console = Console()
 
