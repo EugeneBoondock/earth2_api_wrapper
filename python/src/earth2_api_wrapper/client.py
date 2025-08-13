@@ -23,7 +23,7 @@ class Earth2Client:
     def _headers(self) -> Dict[str, str]:
         headers = {
             "Accept": "application/json, text/plain, */*",
-            "User-Agent": "earth2-api-wrapper-py/0.2.0",
+            "User-Agent": "earth2-api-wrapper-py/0.2.1",
         }
         if self.cookie_jar:
             headers["Cookie"] = self.cookie_jar

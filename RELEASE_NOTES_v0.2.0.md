@@ -3,6 +3,7 @@
 ## 🎉 Successfully Published!
 
 ### 📦 Package Availability
+
 - **npm**: `npm install earth2-api-wrapper@0.2.0`
 - **PyPI**: `pip install earth2-api-wrapper==0.2.0`
 
@@ -13,12 +14,14 @@ This release introduces enterprise-grade safeguards to prevent abuse and protect
 ## ✨ What's New
 
 ### 🚀 Multi-Tier Rate Limiting
+
 - **Per-endpoint limits**: Authentication (5/min), Market Search (30/min), Properties (60/min), etc.
 - **Global rate limiting**: 200 requests/minute maximum across all endpoints
 - **Burst protection**: Max 10 requests per 10 seconds
 - **Exponential backoff**: Automatic delays on errors (2^error_count seconds, max 5 minutes)
 
 ### 💾 Intelligent Caching System
+
 - **5-minute TTL** for GET requests by default
 - **Automatic cache management** (max 1000 entries with cleanup)
 - **Configurable cache duration**
@@ -26,6 +29,7 @@ This release introduces enterprise-grade safeguards to prevent abuse and protect
 - **Significant bandwidth reduction**
 
 ### 📊 Usage Monitoring & Statistics
+
 ```bash
 # New CLI commands
 e2 stats                 # Show detailed usage statistics
@@ -34,6 +38,7 @@ e2 set-cache-ttl 600    # Set cache TTL (Python: seconds, Node.js: milliseconds)
 ```
 
 ### 🔧 Configuration Options
+
 ```typescript
 // Node.js - Rate limiting enabled by default
 const client = new Earth2Client({ respectRateLimits: true });
@@ -57,12 +62,14 @@ client.set_cache_ttl(600)  # 10 minutes
 ## 📈 Performance Benefits
 
 ### Test Results
+
 - ✅ **100% efficiency** under normal usage
 - ✅ **Successful burst protection** (blocked excessive rapid requests)
 - ✅ **Effective caching** (instant responses for cached data)
 - ✅ **Accurate statistics tracking**
 
 ### Real-world Impact
+
 - **Faster responses** through intelligent caching
 - **Reduced API load** on Earth2's servers
 - **Prevention of accidental abuse**
@@ -71,16 +78,19 @@ client.set_cache_ttl(600)  # 10 minutes
 ## 🛡️ Protection Features
 
 ### Authentication Security
+
 - **5 requests/minute limit** on login attempts
 - **Prevents credential stuffing attacks**
 - **OAuth flow protection**
 
 ### Market Data Protection
+
 - **Prevents excessive marketplace scraping**
 - **Reasonable limits for property research**
 - **Burst protection for rapid queries**
 
 ### Resource Protection
+
 - **Rate limiting for resource queries**
 - **Prevents bulk data extraction**
 - **Caching reduces redundant requests**
@@ -106,12 +116,14 @@ $ e2 stats
 ## 🔄 Migration Guide
 
 ### Zero Breaking Changes
+
 - **All existing code continues to work unchanged**
 - **Rate limiting is enabled by default**
 - **Existing applications automatically benefit from caching**
 - **No migration required**
 
 ### Optional Enhancements
+
 - Use `e2 stats` to monitor your usage patterns
 - Optimize your code based on efficiency metrics
 - Configure cache TTL for your specific use case
@@ -125,6 +137,7 @@ $ e2 stats
 ## 🧪 Testing
 
 A test script is included to demonstrate the safeguards:
+
 ```bash
 python test_safeguards.py
 ```
@@ -140,6 +153,7 @@ python test_safeguards.py
 ## 🚀 Installation
 
 ### Node.js/TypeScript
+
 ```bash
 # Install latest version with safeguards
 npm install earth2-api-wrapper@latest
@@ -149,6 +163,7 @@ npm install -g earth2-api-wrapper@latest
 ```
 
 ### Python
+
 ```bash
 # Install latest version with safeguards
 pip install earth2-api-wrapper==0.2.0
@@ -160,6 +175,7 @@ pip install --upgrade earth2-api-wrapper
 ## 🎯 What's Next
 
 Future enhancements planned:
+
 - Adaptive rate limiting based on server response times
 - Enhanced caching with compression
 - Request prioritization system

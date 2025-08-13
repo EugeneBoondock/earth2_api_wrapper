@@ -5,7 +5,7 @@ Protects Earth2's bandwidth by implementing multiple safeguards.
 
 import threading
 from collections import defaultdict, deque
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 import hashlib
 
 
@@ -47,7 +47,7 @@ class RateLimiter:
         self._last_error_time: Dict[str, float] = defaultdict(float)
 
         # Simple in-memory cache for GET requests
-        self._cache: Dict[str, Tuple[float, any]] = {}
+        self._cache: Dict[str, Tuple[float, Any]] = {}
         self._cache_ttl = 300  # 5 minutes default TTL
 
         # Usage tracking
@@ -84,7 +84,7 @@ class RateLimiter:
         """Generate cache key for request."""
         return hashlib.md5(f"{method}:{url}".encode()).hexdigest()
 
-    def _get_cached_response(self, cache_key: str) -> Optional[any]:
+    def _get_cached_response(self, cache_key: str) -> Optional[Any]:
         """Get cached response if still valid."""
         import time
         if cache_key in self._cache:
@@ -95,7 +95,7 @@ class RateLimiter:
                 del self._cache[cache_key]
         return None
 
-    def _cache_response(self, cache_key: str, response: any):
+    def _cache_response(self, cache_key: str, response: Any):
         """Cache response with timestamp."""
         import time
         # Limit cache size to prevent memory issues
@@ -107,7 +107,7 @@ class RateLimiter:
 
         self._cache[cache_key] = (time.time(), response)
 
-    def can_make_request(self, url: str, method: str = 'GET') -> Tuple[bool, Optional[str], Optional[any]]:
+    def can_make_request(self, url: str, method: str = 'GET') -> Tuple[bool, Optional[str], Optional[Any]]:
         """
         Check if request can be made and return cached response if available.
 
@@ -185,13 +185,13 @@ class RateLimiter:
             self._error_counts[endpoint_category] += 1
             self._last_error_time[endpoint_category] = time.time()
 
-    def cache_response(self, url: str, method: str, response: any):
+    def cache_response(self, url: str, method: str, response: Any):
         """Cache a successful response."""
         if method.upper() == 'GET':
             cache_key = self._get_cache_key(url, method)
             self._cache_response(cache_key, response)
 
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get usage statistics."""
         with self._lock:
             # Clean old requests for accurate counts

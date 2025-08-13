@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "earth2-api-wrapper"
-version = "0.2.0"
+version = "0.2.1"
 description = "Unofficial Earth2 API wrapper with CLI (Python). Includes comprehensive safeguards to protect Earth2's bandwidth."
 readme = "README.md"
 requires-python = ">=3.9"
