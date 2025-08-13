@@ -304,7 +304,7 @@ class Earth2Client:
 
     def _get_json(self, url: str) -> Dict[str, Any]:
         """Helper method to get JSON from an API endpoint"""
-        response = self._client.get(url, headers=self._headers())
+        response = self._client.get(url, headers=self._headers(), follow_redirects=True)
         response.raise_for_status()
         return response.json()
 
