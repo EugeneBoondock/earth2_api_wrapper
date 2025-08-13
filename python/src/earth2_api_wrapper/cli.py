@@ -8,6 +8,24 @@ from rich.table import Table
 
 from .client import Earth2Client
 
+
+def _to_int(value: object) -> int:
+    try:
+        if value is None or value == "":
+            return 0
+        return int(value)  # type: ignore[arg-type]
+    except Exception:
+        return 0
+
+
+def _to_float(value: object) -> float:
+    try:
+        if value is None or value == "":
+            return 0.0
+        return float(value)  # type: ignore[arg-type]
+    except Exception:
+        return 0.0
+
 app = typer.Typer(help="Earth2 API CLI (Python)")
 console = Console()
 
@@ -209,10 +227,10 @@ def market(
         if len(location) > 25:
             location = location[:22] + "..."
 
-        # Calculate price per tile
-        price = item.get("price", 0)
-        tile_count = item.get("tileCount", 0)
-        ppt = price / tile_count if tile_count > 0 else 0
+        # Calculate price per tile with safe numeric parsing
+        price = _to_float(item.get("price"))
+        tile_count = _to_int(item.get("tileCount"))
+        ppt = price / tile_count if tile_count > 0 else 0.0
 
         table.add_row(
             description,
