@@ -1,6 +1,7 @@
 import json
 import os
 import typer
+import httpx
 from typing import List, Optional
 from rich.console import Console
 from rich.table import Table
@@ -254,8 +255,17 @@ def leaderboard_player_countries(**params):
 @app.command()
 def resources(property_id: str):
     client = _client_from_env()
-    res = client.get_resources(property_id)
-    typer.echo(json.dumps(res, indent=2))
+    try:
+        res = client.get_resources(property_id)
+        typer.echo(json.dumps(res, indent=2))
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code if e.response is not None else None
+        if status == 401:
+            log_error("401 Unauthorized from resources API. This endpoint typically requires a verified (KYC) Earth2 account and an authenticated session. Please verify your account and log in, then try again.")
+        else:
+            log_error(f"Resources request failed: HTTP {status}")
+    except Exception as e:
+        log_error(f"Resources request failed: {str(e)}")
 
 
 @app.command()

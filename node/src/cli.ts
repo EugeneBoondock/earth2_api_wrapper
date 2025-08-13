@@ -257,8 +257,18 @@ program
   .argument('<id>')
   .action(async (id) => {
     const client = new Earth2Client({ cookieJar: process.env.E2_COOKIE, csrfToken: process.env.E2_CSRF });
-    const res = await client.getResources(id);
-    console.log(JSON.stringify(res, null, 2));
+    try {
+      const res = await client.getResources(id);
+      console.log(JSON.stringify(res, null, 2));
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      if (/\b401\b/.test(msg)) {
+        logError('401 Unauthorized from resources API. This endpoint typically requires a verified (KYC) Earth2 account and an authenticated session. Please verify your account and log in, then try again.');
+      } else {
+        logError(`Resources request failed: ${msg}`);
+      }
+      process.exit(1);
+    }
   });
 
 program
