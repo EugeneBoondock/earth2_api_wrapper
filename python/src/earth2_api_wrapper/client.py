@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlencode
+from typing import Any, Dict, List, Optional
 
 import httpx
 
 
 class Earth2Client:
-    def __init__(self, cookie_jar: Optional[str] = None, csrf_token: Optional[str] = None, client: Optional[httpx.Client] = None):
+    def __init__(
+        self,
+        cookie_jar: Optional[str] = None,
+        csrf_token: Optional[str] = None,
+        client: Optional[httpx.Client] = None
+    ):
         self.cookie_jar = cookie_jar
         self.csrf_token = csrf_token
         self._client = client or httpx.Client(timeout=30)
@@ -41,7 +44,10 @@ class Earth2Client:
     def authenticate(self, email: str, password: str) -> Dict[str, Any]:
         """Authenticate with email/password using Earth2's Kinde OAuth flow"""
         try:
-            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
             all_cookies = []
 
             # Step 1: Start OAuth flow by visiting the main login page
@@ -49,391 +55,347 @@ class Earth2Client:
                 "https://app.earth2.io/login",
                 headers={
                     "User-Agent": user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
                 },
                 follow_redirects=False
             )
 
-            if login_page_response.cookies:
-                all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in login_page_response.cookies])
+            # Step 2: Collect cookies
+            if 'set-cookie' in login_page_response.headers:
+                all_cookies.extend(login_page_response.headers['set-cookie'].split('; '))
 
-            # Step 2: Handle the first redirect (301 to /login/)
-            location_header = login_page_response.headers.get('location')
-            if not location_header:
-                return {"success": False, "message": "No redirect found from login page"}
+            # Follow redirects from the main page until we reach Kinde
+            current_response = login_page_response
+            for _ in range(10):  # Safety limit
+                if current_response.status_code in (301, 302, 303, 307, 308):
+                    location = current_response.headers.get('location')
+                    if location:
+                        # This normalizes funky Earth2 URLs like 'https:auth.earth2.io'
+                        location = self._normalize_auth_url(location)
 
-            if location_header.startswith('/'):
-                location_header = f"https://app.earth2.io{location_header}"
+                        current_response = self._client.get(
+                            location,
+                            headers={
+                                "User-Agent": user_agent,
+                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                            },
+                            follow_redirects=False
+                        )
 
-            step2_response = self._client.get(
-                location_header,
-                headers={
-                    "User-Agent": user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Cookie": "; ".join(all_cookies),
-                },
-                follow_redirects=False
-            )
+                        if 'set-cookie' in current_response.headers:
+                            all_cookies.extend(current_response.headers['set-cookie'].split('; '))
 
-            if step2_response.cookies:
-                all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in step2_response.cookies])
-
-            # Step 3: Follow the OAuth redirect (302 to auth.earth2.io)
-            oauth_url = step2_response.headers.get('location')
-            if not oauth_url:
-                return {"success": False, "message": "No OAuth redirect found from /login/ page"}
-
-            oauth_response = self._client.get(
-                oauth_url,
-                headers={
-                    "User-Agent": user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Cookie": "; ".join(all_cookies),
-                },
-                follow_redirects=False
-            )
-
-            if oauth_response.cookies:
-                all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in oauth_response.cookies])
-
-            # Step 4: Follow redirects to get to the email form
-            current_response = oauth_response
-            redirect_count = 0
-            while current_response.status_code >= 300 and current_response.status_code < 400 and redirect_count < 5:
-                next_url_raw = current_response.headers.get('location')
-                if not next_url_raw:
+                        # If we reach the auth email form, break
+                        if 'auth.earth2.io' in location and '/email' in location:
+                            break
+                else:
+                    # If not redirected to Kinde, this was the final response
                     break
-                next_url = self._normalize_auth_url(next_url_raw)
-                
-                current_response = self._client.get(
-                    next_url,
-                    headers={
-                        "User-Agent": user_agent,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5",
-                        "Cookie": "; ".join(all_cookies),
-                    },
-                    follow_redirects=False
-                )
-
-                if current_response.cookies:
-                    all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in current_response.cookies])
-                redirect_count += 1
 
             # Step 5: Extract and submit email form
             email_page_html = current_response.text
-            email_form_action = str(current_response.url)
-            
-            form_match = re.search(r'<form[^>]*action=[\'\"](.*?)[\'\"][^>]*>', email_page_html)
-            if form_match:
-                email_form_action = self._normalize_auth_url(form_match.group(1))
 
-            # Extract hidden fields
-            hidden_inputs = re.findall(r'<input[^>]*type=[\'\"](hidden|csrf)[\'\"][^>]*>', email_page_html)
-            form_data = {"email": email}
-            
-            for input_tag in hidden_inputs:
-                name_match = re.search(r'name=[\'\"](.*?)[\'\"]', input_tag)
-                value_match = re.search(r'value=[\'\"](.*?)[\'\"]', input_tag)
-                if name_match and value_match:
-                    form_data[name_match.group(1)] = value_match.group(1)
+            # Extract form action and hidden inputs
+            action_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\']', email_page_html)
+            if action_match:
+                email_form_action = self._normalize_auth_url(action_match.group(1))
 
-            email_response = self._client.post(
-                email_form_action,
-                headers={
-                    "User-Agent": user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Origin": "https://auth.earth2.io",
-                    "Referer": str(current_response.url),
-                    "Cookie": "; ".join(all_cookies),
-                },
-                data=form_data,
-                follow_redirects=False
-            )
+                # Extract hidden inputs
+                email_data = {}
+                hidden_inputs = re.findall(
+                    r'<input[^>]*type=["\']hidden["\'][^>]*name=["\']([^"\']+)["\'][^>]*value=["\']([^"\']*)["\']',
+                    email_page_html
+                )
+                for name, value in hidden_inputs:
+                    email_data[name] = value
 
-            if email_response.cookies:
-                all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in email_response.cookies])
+                # Add form data
+                email_data['email'] = email
 
-            # Step 6: Follow redirects to password page
-            password_page_response = email_response
-            redirect_count = 0
-            while password_page_response.status_code >= 300 and password_page_response.status_code < 400 and redirect_count < 5:
-                next_url_raw = password_page_response.headers.get('location')
-                if not next_url_raw:
-                    break
-                next_url = self._normalize_auth_url(next_url_raw)
-                
-                password_page_response = self._client.get(
-                    next_url,
+                email_response = self._client.post(
+                    email_form_action,
+                    data=email_data,
                     headers={
                         "User-Agent": user_agent,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5",
-                        "Cookie": "; ".join(all_cookies),
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Content-Type": "application/x-www-form-urlencoded"
                     },
                     follow_redirects=False
                 )
 
-                if password_page_response.cookies:
-                    all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in password_page_response.cookies])
-                redirect_count += 1
+                if 'set-cookie' in email_response.headers:
+                    all_cookies.extend(email_response.headers['set-cookie'].split('; '))
+
+                # Follow redirects after email submission
+                current_response = email_response
+                for _ in range(10):  # Safety limit
+                    if current_response.status_code in (301, 302, 303, 307, 308):
+                        location = current_response.headers.get('location')
+                        if location:
+
+                            # Normalize this Earth2 URL quirk
+                            location = self._normalize_auth_url(location)
+
+                            current_response = self._client.get(
+                                location,
+                                headers={
+                                    "User-Agent": user_agent,
+                                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                                },
+                                follow_redirects=False
+                            )
+
+                            if 'set-cookie' in current_response.headers:
+                                all_cookies.extend(current_response.headers['set-cookie'].split('; '))
+
+                            # If we reach password/login/register page, we're good
+                            if any(keyword in location for keyword in ['/password', '/login', '/register']):
+                                break
+
+                            if current_response.status_code in (301, 302, 303, 307, 308):
+                                continue
+                            else:
+                                break
+                        else:
+                            break
+                    else:
+                        break
+
+            # Step 6: Get password page if needed
+            if current_response.status_code in (301, 302, 303, 307, 308):
+                location = current_response.headers.get('location')
+                if location:
+                    # Normalize auth URL
+                    location = self._normalize_auth_url(location)
+
+                    current_response = self._client.get(
+                        location,
+                        headers={
+                            "User-Agent": user_agent,
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                        },
+                        follow_redirects=False
+                    )
+
+                    if 'set-cookie' in current_response.headers:
+                        all_cookies.extend(current_response.headers['set-cookie'].split('; '))
 
             # Step 7: Extract and submit password form
-            password_page_html = password_page_response.text
-            password_form_action = str(password_page_response.url)
-            
-            password_form_match = re.search(r'<form[^>]*action=[\'\"](.*?)[\'\"][^>]*>', password_page_html)
-            if password_form_match:
-                password_form_action = self._normalize_auth_url(password_form_match.group(1))
+            password_page_html = current_response.text
 
-            password_hidden_inputs = re.findall(r'<input[^>]*type=[\'\"](hidden|csrf)[\'\"][^>]*>', password_page_html)
-            password_form_data = {"password": password}
-            
-            for input_tag in password_hidden_inputs:
-                name_match = re.search(r'name=[\'\"](.*?)[\'\"]', input_tag)
-                value_match = re.search(r'value=[\'\"](.*?)[\'\"]', input_tag)
-                if name_match and value_match:
-                    password_form_data[name_match.group(1)] = value_match.group(1)
+            # Extract form action and hidden inputs
+            action_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\']', password_page_html)
+            if action_match:
 
-            password_response = self._client.post(
-                password_form_action,
-                headers={
-                    "User-Agent": user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Origin": "https://auth.earth2.io",
-                    "Referer": str(password_page_response.url),
-                    "Cookie": "; ".join(all_cookies),
-                },
-                data=password_form_data,
-                follow_redirects=False
-            )
+                password_form_action = self._normalize_auth_url(action_match.group(1))
 
-            if password_response.cookies:
-                all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in password_response.cookies])
+                # Extract hidden inputs
+                password_data = {}
+                hidden_inputs = re.findall(
+                    r'<input[^>]*type=["\']hidden["\'][^>]*name=["\']([^"\']+)["\'][^>]*value=["\']([^"\']*)["\']',
+                    password_page_html
+                )
+                for name, value in hidden_inputs:
+                    password_data[name] = value
 
-            # Step 8: Follow OAuth callback chain back to app.earth2.io
-            current_url = password_response.headers.get('location')
-            redirect_count = 0
-            while current_url and redirect_count < 10:
-                if current_url.startswith('/'):
-                    current_url = f"https://app.earth2.io{current_url}"
-                
-                redirect_response = self._client.get(
-                    current_url,
+                # Add password
+                password_data["password"] = password
+
+                password_response = self._client.post(
+                    password_form_action,
+                    data=password_data,
                     headers={
                         "User-Agent": user_agent,
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5",
-                        "Cookie": "; ".join(all_cookies),
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Content-Type": "application/x-www-form-urlencoded"
                     },
                     follow_redirects=False
                 )
 
-                if redirect_response.cookies:
-                    all_cookies.extend([f"{cookie.name}={cookie.value}" for cookie in redirect_response.cookies])
+                if 'set-cookie' in password_response.headers:
+                    all_cookies.extend(password_response.headers['set-cookie'].split('; '))
 
-                current_url = redirect_response.headers.get('location')
-                redirect_count += 1
+                # Follow remaining redirects back to Earth2 app
+                current_response = password_response
+                for _ in range(20):  # Safety limit
+                    if current_response.status_code in (301, 302, 303, 307, 308):
+                        location = current_response.headers.get('location')
+                        if location:
+                            # Final chain of redirects back to app.earth2.io
+                            if 'app.earth2.io' in location:
+                                break
 
-                if current_url and 'app.earth2.io' in current_url:
-                    break
+                            if current_response.status_code in (301, 302, 303, 307, 308):
+                                location = current_response.headers.get('location')
+                                if location:
 
-            if redirect_count >= 10:
-                return {"success": False, "message": "Too many redirects during OAuth flow"}
+                                    location = self._normalize_auth_url(location)
 
-            # Store final cookies
+                                    current_response = self._client.get(
+                                        location,
+                                        headers={
+                                            "User-Agent": user_agent,
+                                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                                        },
+                                        follow_redirects=False
+                                    )
+
+                                    if 'set-cookie' in current_response.headers:
+                                        all_cookies.extend(current_response.headers['set-cookie'].split('; '))
+
+                                    # Check if we're back at Earth2 domain
+                                    if 'app.earth2.io' in location:
+                                        break
+
+                                else:
+                                    break
+
+                            else:
+                                break
+
+                        else:
+                            break
+                    else:
+                        break
+
+            # Store cookies
             self.cookie_jar = "; ".join(all_cookies)
-            
+
             return {
                 "success": True,
                 "message": "Authentication successful! OAuth flow completed and cookies have been set."
             }
-                
+
         except Exception as error:
+
             return {
                 "success": False,
                 "message": f"Authentication error: {str(error)}"
             }
 
-    def check_session_validity(self) -> Dict[str, bool]:
-        """Check if current session is still valid"""
-        if not self.cookie_jar:
-            return {"isValid": False, "needsReauth": True}
-
+    def check_session_validity(self) -> Dict[str, Any]:
+        """Check if the current session cookies are still valid"""
         try:
-            # Test session by calling a simple endpoint
-            test_response = self._client.get(
-                "https://r.earth2.io/avatar_sales?page=1&perPage=12",
-                headers={
-                    "User-Agent": "earth2-api-wrapper-py/0.1",
-                    "Accept": "application/json, text/plain, */*",
-                    "Cookie": self.cookie_jar,
-                    "Referer": "https://app.earth2.io/",
-                    "Origin": "https://app.earth2.io"
-                }
+
+            response = self._client.get(
+                "https://app.earth2.io/api/v1/avatar_sales",
+                headers=self._headers(),
+                follow_redirects=False
             )
 
-            if test_response.status_code in [401, 403]:
-                return {"isValid": False, "needsReauth": True}
+            if response.status_code == 200:
+                return {"isValid": True, "needsReauth": False}
 
-            return {"isValid": True, "needsReauth": False}
+            else:
+
+                return {
+                    "isValid": False,
+                    "needsReauth": True,
+                    "status": response.status_code
+                }
 
         except Exception:
-            return {"isValid": False, "needsReauth": True}
 
-    def get_landing_metrics(self) -> Any:
-        return self._get_json("https://r.earth2.io/landing/metrics")
+            return {
+                "isValid": False,
+                "needsReauth": True,
+                "error": "Network error"
+            }
 
-    def get_trending_places(self) -> Dict[str, Any]:
-        j = self._get_json("https://r.earth2.io/landing/trending_places")
-        data = j.get("data", []) if isinstance(j, dict) else []
-        normalized = []
-        for item in data:
-            a = (item or {}).get("attributes", {})
-            normalized.append(
-                {
-                    "id": item.get("id"),
-                    "tier": a.get("landfieldTier"),
-                    "placeCode": a.get("placeCode"),
-                    "placeName": a.get("placeName"),
-                    "tilesSold": a.get("tilesSold"),
-                    "tilePrice": a.get("tilePrice"),
-                    "timeframeDays": a.get("timeframeDays"),
-                    "country": a.get("country"),
-                    "center": a.get("center"),
-                }
-            )
-        return {"data": normalized}
+    def _get_json(self, url: str) -> Dict[str, Any]:
+        """Helper method to get JSON from an API endpoint"""
+        response = self._client.get(url, headers=self._headers())
+        response.raise_for_status()
+        return response.json()
+
+    def get_landing_metrics(self) -> Dict[str, Any]:
+        """Get landing page metrics"""
+        return self._get_json("https://app.earth2.io/api/v1/metrics/landing_page")
+
+    def get_trending_places(self, days: int = 30) -> Dict[str, Any]:
+        """Get trending places"""
+        return self._get_json(f"https://app.earth2.io/api/v1/trending_places?days={days}")
 
     def get_territory_release_winners(self) -> Dict[str, Any]:
-        j = self._get_json("https://r.earth2.io/landing/territory_release_winners")
-        data = j.get("data", []) if isinstance(j, dict) else []
-        normalized = []
-        for item in data:
-            a = (item or {}).get("attributes", {})
-            normalized.append(
-                {
-                    "id": item.get("id"),
-                    "territoryCode": a.get("territoryCode"),
-                    "territoryName": a.get("territoryName"),
-                    "country": a.get("country"),
-                    "countryName": a.get("countryName"),
-                    "votesValue": a.get("votesValue"),
-                    "votesT1": a.get("votesT1"),
-                    "votesT2": a.get("votesT2"),
-                    "votesEsnc": a.get("votesEsnc"),
-                    "releaseAt": a.get("releaseAt"),
-                    "center": a.get("center"),
-                }
-            )
-        return {"data": normalized}
+        """Get territory release winners"""
+        return self._get_json("https://app.earth2.io/api/v1/territory_release_winners")
 
-    def get_avatar_sales(self) -> Dict[str, Any]:
-        return self._get_json("https://r.earth2.io/avatar_sales")
+    def get_property(self, property_id: str) -> Dict[str, Any]:
+        """Get property details by ID"""
+        return self._get_json(f"https://app.earth2.io/api/v1/property/{property_id}")
 
-    def get_user_info(self, user_id: str) -> Dict[str, Any]:
-        return self._get_json(f"https://app.earth2.io/api/v2/user_info/{user_id}")
-
-    def get_users(self, user_ids: List[str]) -> Dict[str, Any]:
-        params = [("ids", user_id) for user_id in user_ids]
-        return self._get_json("https://app.earth2.io/users", params=params)
-
-    def get_my_favorites(self) -> Dict[str, Any]:
-        return self._get_json("https://r.earth2.io/api/v2/my/favorites")
-
-    def get_property(self, id: str) -> Any:
-        if not id:
-            raise ValueError("id required")
-        return self._get_json(f"https://r.earth2.io/landfields/{id}")
-
-    def search_market(self, *, country: Optional[str] = None, landfieldTier: Optional[str] = None, tileClass: Optional[str] = None, tileCount: Optional[str] = None, page: int = 1, items: int = 100, search: str = "", searchTerms: Optional[List[str]] = None) -> Dict[str, Any]:
-        url = httpx.URL("https://r.earth2.io/marketplace")
+    def search_market(
+        self,
+        country: Optional[str] = None,
+        landfieldTier: Optional[str] = None,
+        tileClass: Optional[str] = None,
+        tileCount: Optional[str] = None,
+        page: int = 1,
+        items: int = 100,
+        search: str = "",
+        searchTerms: Optional[List[str]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Search marketplace"""
         params = {
-            "sorting": "price_per_tile",
-            "page": str(page),
-            "items": str(items),
+            "page": page,
+            "items": items,
             "search": search,
         }
+
         if country:
             params["country"] = country
-        if landfieldTier is not None:
-            params["landfieldTier"] = str(landfieldTier)
-        if tileClass is not None and landfieldTier == "1":
-            params["tileClass"] = str(tileClass)
-        if tileCount is not None:
-            params["tileCount"] = str(tileCount)
-        request = self._client.build_request("GET", url, params=params, headers=self._headers())
-        resp = self._client.send(request)
-        self._ensure_ok(resp, url)
-        j = resp.json()
-        landfields = j.get("landfields", []) if isinstance(j, dict) else []
-        items_out = []
-        for lf in landfields:
-            ppt = (lf.get("price") or 0) / lf.get("tileCount") if (lf.get("price") and lf.get("tileCount")) else None
-            if ppt is not None:
-                items_out.append(
-                    {
-                        "id": lf.get("id"),
-                        "description": lf.get("description"),
-                        "location": lf.get("location"),
-                        "country": lf.get("country"),
-                        "tier": lf.get("landfieldTier"),
-                        "tileClass": lf.get("tileClass"),
-                        "tileCount": lf.get("tileCount"),
-                        "price": lf.get("price"),
-                        "ppt": ppt,
-                        "thumbnail": lf.get("thumbnail"),
-                    }
-                )
-        items_out.sort(key=lambda x: x["ppt"])  # type: ignore[index]
-        return {"raw": j, "items": items_out, "count": int(j.get("count", 0)) if isinstance(j, dict) else 0}
+        if landfieldTier:
+            params["landfieldTier"] = landfieldTier
+        if tileClass:
+            params["tileClass"] = tileClass
+        if tileCount:
+            params["tileCount"] = tileCount
+        if searchTerms:
+            params["searchTerms"] = searchTerms
 
-    def get_leaderboard(self, kind: str = "players", **params: Any) -> Any:
-        if kind not in ("players", "countries", "player_countries"):
-            raise ValueError("invalid leaderboard kind")
-        path = {
-            "players": "players",
-            "countries": "landfield_countries",
-            "player_countries": "player_countries",
-        }[kind]
-        url = httpx.URL(f"https://r.earth2.io/leaderboards/{path}")
-        req = self._client.build_request("GET", url, params={k: v for k, v in params.items() if v is not None}, headers=self._headers())
-        resp = self._client.send(req)
-        self._ensure_ok(resp, url)
-        return resp.json()
+        params.update(kwargs)
 
-    def get_resources(self, property_id: str) -> Any:
-        if not property_id:
-            raise ValueError("property_id required")
-        url = f"https://resources.earth2.io/v1/landfields/{property_id}/resources"
-        req = self._client.build_request("GET", url, headers=self._headers())
-        resp = self._client.send(req)
-        self._ensure_ok(resp, url)
-        return resp.json()
+        url = "https://app.earth2.io/api/v1/marketplace"
+        query_string = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
+        full_url = f"{url}?{query_string}"
 
-    def _get_json(self, url: str) -> Any:
-        resp = self._client.get(url, headers=self._headers())
-        self._ensure_ok(resp, url)
-        return resp.json()
+        return self._get_json(full_url)
 
-    @staticmethod
-    def _ensure_ok(resp: httpx.Response, url: Any) -> None:
-        if resp.status_code < 200 or resp.status_code >= 300:
-            text = None
-            try:
-                text = resp.text
-            except Exception:
-                pass
-            raise RuntimeError(f"GET {url} failed: {resp.status_code} {text[:200] if text else ''}")
+    def get_leaderboard(
+        self,
+        type: str = "players",  # noqa: A002
+        sort_by: str = "tiles_count",
+        country: Optional[str] = None,
+        continent: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get leaderboard"""
+        params = {"type": type, "sort_by": sort_by}
+        if country:
+            params["country"] = country
+        if continent:
+            params["continent"] = continent
 
+        query_string = "&".join(f"{k}={v}" for k, v in params.items())
+        return self._get_json(f"https://app.earth2.io/api/v1/leaderboard?{query_string}")
 
+    def get_avatar_sales(self) -> Dict[str, Any]:
+        """Get avatar sales data"""
+        return self._get_json("https://app.earth2.io/api/v1/avatar_sales")
+
+    def get_user_info(self, user_id: str) -> Dict[str, Any]:
+        """Get user information by ID"""
+        return self._get_json(f"https://app.earth2.io/api/v1/user/{user_id}")
+
+    def get_users(self, user_ids: List[str]) -> Dict[str, Any]:
+        """Get multiple users by IDs"""
+        user_ids_str = ",".join(user_ids)
+        return self._get_json(f"https://app.earth2.io/api/v1/users?ids={user_ids_str}")
+
+    def get_my_favorites(self) -> Dict[str, Any]:
+        """Get user's favorite properties (requires authentication)"""
+        return self._get_json("https://app.earth2.io/api/v1/user/favorites")
+
+    def get_resources(self, property_id: str) -> Dict[str, Any]:
+        """Get property resources by ID"""
+        return self._get_json(f"https://app.earth2.io/api/v1/property/{property_id}/resources")

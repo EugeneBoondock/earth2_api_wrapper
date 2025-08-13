@@ -4,8 +4,6 @@ import typer
 from typing import List, Optional
 from rich.console import Console
 from rich.table import Table
-from rich.text import Text
-from tabulate import tabulate
 
 from .client import Earth2Client
 
@@ -40,28 +38,33 @@ def log_info(message: str) -> None:
 @app.command()
 def login(
     email: Optional[str] = typer.Option(None, "--email", "-e", help="Email address"),
-    password: Optional[str] = typer.Option(None, "--password", "-p", help="Password", hide_input=True)
+    password: Optional[str] = typer.Option(
+        None, "--password", "-p", help="Password", hide_input=True
+    )
 ):
     """Authenticate with Earth2 using Kinde OAuth flow"""
     client = Earth2Client()
-    
+
     email = email or os.getenv("E2_EMAIL")
     password = password or os.getenv("E2_PASSWORD")
-    
+
     if not email or not password:
-        log_error("Email and password are required. Use --email and --password or set E2_EMAIL and E2_PASSWORD environment variables.")
+        log_error(
+            "Email and password are required. Use --email and --password or set "
+            "E2_EMAIL and E2_PASSWORD environment variables."
+        )
         raise typer.Exit(1)
-    
+
     log_info("Starting Earth2 Kinde OAuth authentication flow...")
     log_info("This may take a moment as we navigate through multiple redirects...")
-    
+
     result = client.authenticate(email, password)
-    
+
     if result["success"]:
         log_success(result["message"])
         log_info("Session cookies have been stored for this session.")
         log_info('You can now use authenticated endpoints like "e2 my-favorites"')
-        
+
         # Test the session
         log_info("Testing session validity...")
         session_check = client.check_session_validity()
@@ -79,14 +82,14 @@ def login(
 def check_session():
     """Check if current session is still valid"""
     client = _client_from_env()
-    
+
     if not client.cookie_jar:
         log_error('No session found. Please run "e2 login" first.')
         raise typer.Exit(1)
-    
+
     log_info("Checking session validity...")
     result = client.check_session_validity()
-    
+
     if result["isValid"]:
         log_success("Session is valid!")
     else:
@@ -101,17 +104,17 @@ def trending(json_output: bool = typer.Option(False, "--json", help="Output raw 
     """Get trending places"""
     client = _client_from_env()
     res = client.get_trending_places()
-    
+
     if json_output:
         typer.echo(json.dumps(res, indent=2))
         return
-    
+
     console.print("\n🌍 [bold blue]Trending Places[/bold blue]\n")
-    
+
     if not res["data"]:
         log_info("No trending places found")
         return
-    
+
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Place")
     table.add_column("Country")
@@ -119,7 +122,7 @@ def trending(json_output: bool = typer.Option(False, "--json", help="Output raw 
     table.add_column("Tiles Sold")
     table.add_column("Tile Price")
     table.add_column("Days")
-    
+
     for place in res["data"]:
         table.add_row(
             place.get("placeName") or "N/A",
@@ -129,7 +132,7 @@ def trending(json_output: bool = typer.Option(False, "--json", help="Output raw 
             format_price(place["tilePrice"]) if place.get("tilePrice") else "N/A",
             format_number(place["timeframeDays"]) if place.get("timeframeDays") else "N/A"
         )
-    
+
     console.print(table)
 
 
@@ -171,18 +174,18 @@ def market(
         search=search,
         searchTerms=term or [],
     )
-    
+
     if json_output:
         typer.echo(json.dumps(res, indent=2))
         return
-    
+
     console.print("\n🏪 [bold blue]Marketplace Search Results[/bold blue]\n")
     log_info(f"Found {format_number(res['count'])} total properties")
-    
+
     if not res["items"]:
         log_info("No properties match your search criteria")
         return
-    
+
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Description", max_width=30)
     table.add_column("Location", max_width=25)
@@ -191,16 +194,16 @@ def market(
     table.add_column("Tiles")
     table.add_column("Total Price")
     table.add_column("Price/Tile")
-    
+
     for item in res["items"][:20]:  # Show first 20
         description = (item.get("description") or "N/A")
         if len(description) > 30:
             description = description[:27] + "..."
-            
+
         location = (item.get("location") or "N/A")
         if len(location) > 25:
             location = location[:22] + "..."
-        
+
         table.add_row(
             description,
             location,
@@ -210,9 +213,9 @@ def market(
             format_price(item["price"]) if item.get("price") else "N/A",
             format_price(item["ppt"]) if item.get("ppt") else "N/A"
         )
-    
+
     console.print(table)
-    
+
     if len(res["items"]) > 20:
         log_info(f"Showing first 20 of {len(res['items'])} results. Use --json to see all.")
 
@@ -266,5 +269,3 @@ def my_favorites():
 
 if __name__ == "__main__":
     app()
-
-
