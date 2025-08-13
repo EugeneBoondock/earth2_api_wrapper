@@ -146,11 +146,20 @@ Both Node.js and Python versions include CLI tools.
 ### Node.js CLI
 
 ```bash
-# After global install
-e2 trending
+# Authentication
+e2 login --email your@email.com --password yourpassword
+
+# Data commands with beautiful formatted output
+e2 trending              # 🌍 Trending places in a nice table
+e2 market --country AU   # 🏪 Marketplace search with formatting
+e2 leaderboard --type players  # 🏆 Leaderboards with colors
+
+# Raw JSON output (for scripts/automation)
+e2 trending --json
+e2 market --country AU --json
+
+# Other commands
 e2 property <uuid>
-e2 market --country AU --tier 1 --tile-count "5-50"
-e2 leaderboard --type players --sort_by tiles_count
 e2 resources <uuid>
 e2 avatar-sales
 e2 user <user-id>
@@ -160,40 +169,105 @@ e2 my-favorites  # Requires auth
 ### Python CLI
 
 ```bash
-# Using the e2 command (after pip install)
-e2 trending
+# Authentication
+e2 login --email your@email.com --password yourpassword
+
+# Data commands with beautiful formatted output
+e2 trending              # 🌍 Trending places in a nice table
+e2 market --country AU   # 🏪 Marketplace search with formatting
+e2 leaderboard --type players  # 🏆 Leaderboards with colors
+
+# Raw JSON output (for scripts/automation)
+e2 trending --json
+e2 market --country AU --json
+
+# Other commands
 e2 property <uuid>
-e2 market --country AU --tier 1 --tile-count "5-50"
-e2 leaderboard --type players --sort-by tiles_count
 e2 resources <uuid>
 e2 avatar-sales
 e2 user <user-id>
 e2 my-favorites  # Requires auth
 ```
 
+> **Note**: The CLI now features beautiful formatted tables, colors, and emojis for better readability. Use the `--json` flag on any command to get raw JSON output for scripting purposes.
+
 ## Authentication
 
-For endpoints that require authentication (like favorites), you can provide authentication details:
+The wrapper provides multiple ways to authenticate with Earth2 for accessing private endpoints like favorites.
 
-### Environment Variables
+### Method 1: CLI Login (Recommended)
 
+The easiest way is to use the built-in login command:
+
+```bash
+# Interactive login
+e2 login --email your@email.com --password yourpassword
+
+# Or using environment variables
+export E2_EMAIL="your@email.com"
+export E2_PASSWORD="yourpassword"
+e2 login
+```
+
+After successful login, you can use authenticated endpoints:
+```bash
+e2 my-favorites
+```
+
+### Method 2: Programmatic Authentication
+
+#### Node.js
+```typescript
+import { Earth2Client } from 'earth2-api-wrapper';
+
+const client = new Earth2Client();
+const result = await client.authenticate('your@email.com', 'yourpassword');
+
+if (result.success) {
+  console.log('✓ Authenticated successfully!');
+  // Now you can use authenticated endpoints
+  const favorites = await client.getMyFavorites();
+} else {
+  console.error('✗ Authentication failed:', result.message);
+}
+```
+
+#### Python
+```python
+from earth2_api_wrapper import Earth2Client
+
+client = Earth2Client()
+result = client.authenticate('your@email.com', 'yourpassword')
+
+if result['success']:
+    print('✓ Authenticated successfully!')
+    # Now you can use authenticated endpoints
+    favorites = client.get_my_favorites()
+else:
+    print('✗ Authentication failed:', result['message'])
+```
+
+### Method 3: Manual Cookie/Token Setup
+
+If you already have session cookies and CSRF tokens:
+
+#### Environment Variables
 ```bash
 export E2_COOKIE="your-cookie-string"
 export E2_CSRF="your-csrf-token"
 ```
 
-### Programmatic Authentication
-
-#### Node.js
+#### Programmatic Setup
 ```typescript
+// Node.js
 const client = new Earth2Client({
   cookieJar: 'your-cookie-string',
   csrfToken: 'your-csrf-token'
 });
 ```
 
-#### Python
 ```python
+# Python
 client = Earth2Client(
     cookie_jar='your-cookie-string',
     csrf_token='your-csrf-token'

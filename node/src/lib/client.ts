@@ -16,6 +16,76 @@ export class Earth2Client {
   setCookieJar(jar: string | undefined) { this.cookieJar = jar; }
   setCsrfToken(token: string | undefined) { this.csrfToken = token; }
 
+  // Authenticate with email/password to get cookies and CSRF token
+  async authenticate(email: string, password: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // First, get the login page to extract CSRF token
+      const loginPageResponse = await this.fetchImpl('https://app.earth2.io/login', {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        }
+      });
+
+      if (!loginPageResponse.ok) {
+        return { success: false, message: `Failed to load login page: ${loginPageResponse.status}` };
+      }
+
+      const loginPageText = await loginPageResponse.text();
+      const csrfMatch = loginPageText.match(/<meta name="csrf-token" content="([^"]+)"/);
+      const csrfToken = csrfMatch?.[1];
+
+      if (!csrfToken) {
+        return { success: false, message: 'Could not extract CSRF token from login page' };
+      }
+
+      // Extract cookies from login page
+      const loginCookies = loginPageResponse.headers.get('set-cookie') || '';
+
+      // Now attempt login
+      const loginResponse = await this.fetchImpl('https://app.earth2.io/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
+          'X-CSRF-TOKEN': csrfToken,
+          'Cookie': loginCookies,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        },
+        body: new URLSearchParams({
+          email,
+          password,
+          _token: csrfToken
+        }).toString()
+      });
+
+      // Extract session cookies
+      const sessionCookies = loginResponse.headers.get('set-cookie');
+      
+      if (loginResponse.ok && sessionCookies) {
+        // Parse and store session cookies
+        this.cookieJar = sessionCookies;
+        this.csrfToken = csrfToken;
+        
+        return { 
+          success: true, 
+          message: 'Authentication successful! Cookies and CSRF token have been set.' 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: `Login failed: ${loginResponse.status}. Please check your credentials.` 
+        };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        message: `Authentication error: ${error instanceof Error ? error.message : String(error)}` 
+      };
+    }
+  }
+
   // Public GET helper to r.earth2.io (session optional; many endpoints are public)
   private async getJson<T>(url: string, init?: any): Promise<T> {
     const headers: Record<string, string> = {

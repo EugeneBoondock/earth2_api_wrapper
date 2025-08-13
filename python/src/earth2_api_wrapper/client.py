@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 import httpx
 
@@ -24,6 +26,72 @@ class Earth2Client:
             headers["X-XSRF-TOKEN"] = self.csrf_token
             headers["X-CsrfToken"] = self.csrf_token
         return headers
+
+    def authenticate(self, email: str, password: str) -> Dict[str, Any]:
+        """Authenticate with email/password to get cookies and CSRF token"""
+        try:
+            # First, get the login page to extract CSRF token
+            login_page_response = self._client.get(
+                "https://app.earth2.io/login",
+                headers={
+                    "User-Agent": "earth2-api-wrapper-py/0.1",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                }
+            )
+
+            if login_page_response.status_code != 200:
+                return {
+                    "success": False, 
+                    "message": f"Failed to load login page: {login_page_response.status_code}"
+                }
+
+            login_page_text = login_page_response.text
+            csrf_match = re.search(r'<meta name="csrf-token" content="([^"]+)"', login_page_text)
+            csrf_token = csrf_match.group(1) if csrf_match else None
+
+            if not csrf_token:
+                return {"success": False, "message": "Could not extract CSRF token from login page"}
+
+            # Extract cookies from login page
+            login_cookies = "; ".join([f"{cookie.name}={cookie.value}" for cookie in login_page_response.cookies])
+
+            # Now attempt login
+            login_response = self._client.post(
+                "https://app.earth2.io/login",
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": "earth2-api-wrapper-py/0.1",
+                    "X-CSRF-TOKEN": csrf_token,
+                    "Cookie": login_cookies,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                },
+                data={
+                    "email": email,
+                    "password": password,
+                    "_token": csrf_token
+                }
+            )
+
+            if login_response.status_code == 200 and login_response.cookies:
+                # Parse and store session cookies
+                self.cookie_jar = "; ".join([f"{cookie.name}={cookie.value}" for cookie in login_response.cookies])
+                self.csrf_token = csrf_token
+                
+                return {
+                    "success": True,
+                    "message": "Authentication successful! Cookies and CSRF token have been set."
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Login failed: {login_response.status_code}. Please check your credentials."
+                }
+                
+        except Exception as error:
+            return {
+                "success": False,
+                "message": f"Authentication error: {str(error)}"
+            }
 
     def get_landing_metrics(self) -> Any:
         return self._get_json("https://r.earth2.io/landing/metrics")
