@@ -314,7 +314,7 @@ class Earth2Client:
 
     def get_trending_places(self, days: int = 30) -> Dict[str, Any]:
         """Get trending places"""
-        return self._get_json(f"https://app.earth2.io/api/v1/trending_places?days={days}")
+        return self._get_json("https://r.earth2.io/landing/trending_places")
 
     def get_territory_release_winners(self) -> Dict[str, Any]:
         """Get territory release winners"""
@@ -356,7 +356,7 @@ class Earth2Client:
 
         params.update(kwargs)
 
-        url = "https://app.earth2.io/api/v1/marketplace"
+        url = "https://r.earth2.io/marketplace"
         query_string = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
         full_url = f"{url}?{query_string}"
 

@@ -124,13 +124,14 @@ def trending(json_output: bool = typer.Option(False, "--json", help="Output raw 
     table.add_column("Days")
 
     for place in res["data"]:
+        attrs = place.get("attributes", {})
         table.add_row(
-            place.get("placeName") or "N/A",
-            place.get("country") or "N/A",
-            f"T{place['tier']}" if place.get("tier") else "N/A",
-            format_number(place["tilesSold"]) if place.get("tilesSold") else "N/A",
-            format_price(place["tilePrice"]) if place.get("tilePrice") else "N/A",
-            format_number(place["timeframeDays"]) if place.get("timeframeDays") else "N/A"
+            attrs.get("placeName") or "N/A",
+            attrs.get("country") or "N/A",
+            f"T{attrs['landfieldTier']}" if attrs.get("landfieldTier") else "N/A",
+            format_number(attrs["tilesSold"]) if attrs.get("tilesSold") else "N/A",
+            format_price(attrs["tilePrice"]) if attrs.get("tilePrice") else "N/A",
+            format_number(attrs["timeframeDays"]) if attrs.get("timeframeDays") else "N/A"
         )
 
     console.print(table)
@@ -182,7 +183,8 @@ def market(
     console.print("\n🏪 [bold blue]Marketplace Search Results[/bold blue]\n")
     log_info(f"Found {format_number(res['count'])} total properties")
 
-    if not res["items"]:
+    landfields = res.get("landfields", [])
+    if not landfields:
         log_info("No properties match your search criteria")
         return
 
@@ -195,7 +197,7 @@ def market(
     table.add_column("Total Price")
     table.add_column("Price/Tile")
 
-    for item in res["items"][:20]:  # Show first 20
+    for item in landfields[:items]:  # Show requested number of items
         description = (item.get("description") or "N/A")
         if len(description) > 30:
             description = description[:27] + "..."
@@ -204,6 +206,11 @@ def market(
         if len(location) > 25:
             location = location[:22] + "..."
 
+        # Calculate price per tile
+        price = item.get("price", 0)
+        tile_count = item.get("tileCount", 0)
+        ppt = price / tile_count if tile_count > 0 else 0
+        
         table.add_row(
             description,
             location,
@@ -211,13 +218,13 @@ def market(
             f"T{item['tier']}" if item.get("tier") else "N/A",
             format_number(item["tileCount"]) if item.get("tileCount") else "N/A",
             format_price(item["price"]) if item.get("price") else "N/A",
-            format_price(item["ppt"]) if item.get("ppt") else "N/A"
+            format_price(ppt) if ppt > 0 else "N/A"
         )
 
     console.print(table)
 
-    if len(res["items"]) > 20:
-        log_info(f"Showing first 20 of {len(res['items'])} results. Use --json to see all.")
+    if len(landfields) > items:
+        log_info(f"Showing first {items} of {len(landfields)} results. Use --json to see all.")
 
 
 @app.command()
