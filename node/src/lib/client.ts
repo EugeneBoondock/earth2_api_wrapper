@@ -1,4 +1,4 @@
-import { LeaderboardQuery, MarketItemSimplified, MarketSearchQuery, ResourcesResponse, TrendingPlace } from './types';
+import { LeaderboardQuery, MarketItemSimplified, MarketSearchQuery, ResourcesResponse, TrendingPlace, UserInfo, Favorite } from './types';
 
 type FetchLike = (url: string, init?: any) => Promise<any>;
 
@@ -425,7 +425,7 @@ export class Earth2Client {
         ppt,
         thumbnail: lf.thumbnail,
       } as MarketItemSimplified;
-    }).filter(x => x.ppt !== null).sort((a, b) => (a.ppt! - b.ppt!));
+    }).filter((x: MarketItemSimplified) => x.ppt !== null).sort((a: MarketItemSimplified, b: MarketItemSimplified) => (a.ppt! - b.ppt!));
     return { raw: json, items, count: Number(json?.count || 0) };
   }
 
