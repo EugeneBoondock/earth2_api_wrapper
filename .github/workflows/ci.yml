@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-node:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    
+    defaults:
+      run:
+        working-directory: ./node
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: './node/package-lock.json'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Test (if tests exist)
+      run: npm test --if-present
+
+  test-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
+    defaults:
+      run:
+        working-directory: ./python
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    
+    - name: Test CLI
+      run: |
+        e2 --help
+        python -m earth2_api_wrapper.cli --help
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: './node/package-lock.json'
+    
+    - name: Install Node.js dependencies
+      working-directory: ./node
+      run: npm ci
+    
+    - name: TypeScript Check
+      working-directory: ./node
+      run: npm run build
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      working-directory: ./python
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install flake8 mypy
+    
+    - name: Lint Python
+      working-directory: ./python
+      run: |
+        flake8 src/ --max-line-length=120 --extend-ignore=E203,W503
+        mypy src/ --ignore-missing-imports
