@@ -24,9 +24,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: |
-          **/package-lock.json
     
     - name: Install dependencies
       run: npm ci
@@ -75,9 +72,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
-        cache: 'npm'
-        cache-dependency-path: |
-          **/package-lock.json
     
     - name: Install Node.js dependencies
       working-directory: ./node
