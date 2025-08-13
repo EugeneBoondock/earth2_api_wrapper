@@ -52,15 +52,11 @@ bun install https://github.com/EugeneBoondock/earth2_api_wrapper.git#main:node
 npm install -g https://github.com/EugeneBoondock/earth2_api_wrapper.git#main:node
 ```
 
-**From npm (when published):**
+**From npm (coming soon):**
 ```bash
-# Install from npm
+# Will be available once published to npm
 npm install earth2-api-wrapper
-
-# Or with Bun
 bun install earth2-api-wrapper
-
-# Or install globally for CLI access
 npm install -g earth2-api-wrapper
 ```
 
@@ -72,9 +68,9 @@ npm install -g earth2-api-wrapper
 pip install git+https://github.com/EugeneBoondock/earth2_api_wrapper.git#subdirectory=python
 ```
 
-**From PyPI (when published):**
+**From PyPI (coming soon):**
 ```bash
-# Install from PyPI
+# Will be available once published to PyPI
 pip install earth2-api-wrapper
 ```
 
