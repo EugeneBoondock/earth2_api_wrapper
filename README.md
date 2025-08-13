@@ -27,17 +27,18 @@ Unofficial Earth2 API wrapper library and CLI tools for Node.js/TypeScript and P
 
 ### Public Data Endpoints
 - Landing metrics and trending places
-- Territory release winners
 - Property details by ID
-- Marketplace search with advanced filtering
-- Market floor price discovery
-- Leaderboards (players, countries, player countries)
-- Avatar sales data
 - Public user information
-- Resource data for properties
 
 ### Authenticated Endpoints
-- User favorites (requires authentication)
+- Market (requires authentication)
+- Leaderboard (requires authentication)
+- Resource data for properties (requires authentication)
+- Territory release winners (requires authentication)
+- Leaderboards (players, countries, player countries) (requires authentication)
+- Marketplace search with advanced filtering (requires authentication)
+- Market floor price discovery (requires authentication)
+- Avatar sales data (requires authentication)
 
 ## Installation
 
