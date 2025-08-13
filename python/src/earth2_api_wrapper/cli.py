@@ -2,27 +2,39 @@ import json
 import os
 import typer
 import httpx
-from typing import List, Optional
+from typing import Any, List, Optional
 from rich.console import Console
 from rich.table import Table
 
 from .client import Earth2Client
 
 
-def _to_int(value: object) -> int:
+def _to_int(value: Any) -> int:
     try:
         if value is None or value == "":
             return 0
-        return int(value)  # type: ignore[arg-type]
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            return int(value)
+        return 0
     except Exception:
         return 0
 
 
-def _to_float(value: object) -> float:
+def _to_float(value: Any) -> float:
     try:
         if value is None or value == "":
             return 0.0
-        return float(value)  # type: ignore[arg-type]
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            return float(value)
+        return 0.0
     except Exception:
         return 0.0
 
@@ -229,9 +241,9 @@ def market(
             location = location[:22] + "..."
 
         # Calculate price per tile with safe numeric parsing
-        price = _to_float(item.get("price"))
-        tile_count = _to_int(item.get("tileCount"))
-        ppt = price / tile_count if tile_count > 0 else 0.0
+        price_value = _to_float(item.get("price"))
+        tile_count_value = _to_int(item.get("tileCount"))
+        ppt_value = price_value / tile_count_value if tile_count_value > 0 else 0.0
 
         table.add_row(
             description,
@@ -240,7 +252,7 @@ def market(
             f"T{item['tier']}" if item.get("tier") else "N/A",
             format_number(item["tileCount"]) if item.get("tileCount") else "N/A",
             format_price(item["price"]) if item.get("price") else "N/A",
-            format_price(ppt) if ppt > 0 else "N/A"
+            format_price(ppt_value) if ppt_value > 0 else "N/A"
         )
 
     console.print(table)
