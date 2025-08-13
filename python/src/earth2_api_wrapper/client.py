@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
+from .rate_limiter import get_rate_limiter
 
 
 class Earth2Client:
@@ -11,11 +13,13 @@ class Earth2Client:
         self,
         cookie_jar: Optional[str] = None,
         csrf_token: Optional[str] = None,
-        client: Optional[httpx.Client] = None
+        client: Optional[httpx.Client] = None,
+        respect_rate_limits: bool = True
     ):
         self.cookie_jar = cookie_jar
         self.csrf_token = csrf_token
         self._client = client or httpx.Client(timeout=30)
+        self._rate_limiter = get_rate_limiter() if respect_rate_limits else None
 
     def _headers(self) -> Dict[str, str]:
         headers = {
@@ -43,6 +47,15 @@ class Earth2Client:
 
     def authenticate(self, email: str, password: str) -> Dict[str, Any]:
         """Authenticate with email/password using Earth2's Kinde OAuth flow"""
+        # Rate limit authentication attempts to prevent abuse
+        if self._rate_limiter:
+            can_proceed, reason, _ = self._rate_limiter.can_make_request('https://app.earth2.io/login', 'POST')
+            if not can_proceed:
+                return {
+                    "success": False,
+                    "message": f"Authentication rate limited: {reason}"
+                }
+        
         try:
             user_agent = (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -260,6 +273,9 @@ class Earth2Client:
 
             # Store cookies
             self.cookie_jar = "; ".join(all_cookies)
+            
+            if self._rate_limiter:
+                self._rate_limiter.record_request('https://app.earth2.io/login', 'POST')
 
             return {
                 "success": True,
@@ -267,6 +283,8 @@ class Earth2Client:
             }
 
         except Exception as error:
+            if self._rate_limiter:
+                self._rate_limiter.record_error('https://app.earth2.io/login')
 
             return {
                 "success": False,
@@ -303,10 +321,34 @@ class Earth2Client:
             }
 
     def _get_json(self, url: str) -> Dict[str, Any]:
-        """Helper method to get JSON from an API endpoint"""
-        response = self._client.get(url, headers=self._headers(), follow_redirects=True)
-        response.raise_for_status()
-        return response.json()
+        """Helper method to get JSON from an API endpoint with rate limiting"""
+        if self._rate_limiter:
+            can_proceed, reason, cached_response = self._rate_limiter.can_make_request(url, 'GET')
+            
+            if cached_response is not None:
+                return cached_response
+            
+            if not can_proceed:
+                raise Exception(f"Rate limit exceeded: {reason}")
+        
+        try:
+            response = self._client.get(url, headers=self._headers(), follow_redirects=True)
+            response.raise_for_status()
+            result = response.json()
+            
+            if self._rate_limiter:
+                self._rate_limiter.record_request(url, 'GET')
+                self._rate_limiter.cache_response(url, 'GET', result)
+            
+            return result
+            
+        except Exception as e:
+            if self._rate_limiter:
+                status_code = None
+                if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                    status_code = e.response.status_code
+                self._rate_limiter.record_error(url, status_code)
+            raise
 
     def get_landing_metrics(self) -> Dict[str, Any]:
         """Get landing page metrics"""
@@ -423,3 +465,19 @@ class Earth2Client:
     def get_resources(self, property_id: str) -> Dict[str, Any]:
         """Get property resources by ID"""
         return self._get_json(f"https://resources.earth2.io/v1/landfields/{property_id}/resources")
+    
+    def get_rate_limit_stats(self) -> Dict[str, Any]:
+        """Get rate limiting statistics and usage information"""
+        if not self._rate_limiter:
+            return {"rate_limiting": "disabled"}
+        return self._rate_limiter.get_stats()
+    
+    def clear_cache(self):
+        """Clear the response cache"""
+        if self._rate_limiter:
+            self._rate_limiter.clear_cache()
+    
+    def set_cache_ttl(self, seconds: int):
+        """Set cache time-to-live in seconds"""
+        if self._rate_limiter:
+            self._rate_limiter._cache_ttl = seconds

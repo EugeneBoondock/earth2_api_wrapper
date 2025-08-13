@@ -19,6 +19,9 @@ Unofficial Earth2 API wrapper library and CLI tools for Node.js/TypeScript and P
 - 👤 **User Data**: Fetch public user information and profiles
 - 🎮 **Avatar Sales**: Track recent avatar skin sales
 - 🔐 **Authentication Support**: Optional cookie/CSRF token authentication for private data
+- 🛡️ **Built-in Safeguards**: Comprehensive rate limiting and abuse prevention to protect Earth2's bandwidth
+- 📈 **Usage Monitoring**: Real-time statistics and efficiency tracking
+- 💾 **Smart Caching**: Intelligent response caching to reduce API load
 
 ## API Endpoints Covered
 
@@ -141,7 +144,7 @@ print(property_data)
 
 ## CLI Usage
 
-Both Node.js and Python versions include CLI tools.
+Both Node.js and Python versions include CLI tools with built-in safeguards.
 
 ### Node.js CLI
 
@@ -158,6 +161,11 @@ e2 leaderboard --type players  # 🏆 Leaderboards with colors
 # Raw JSON output (for scripts/automation)
 e2 trending --json
 e2 market --country AU --json
+
+# Rate limiting and monitoring commands
+e2 stats                 # 📊 Show usage statistics and efficiency
+e2 clear-cache          # 🗑️ Clear response cache
+e2 set-cache-ttl 600000 # ⏱️ Set cache TTL (milliseconds)
 
 # Other commands
 e2 property <uuid>
@@ -182,6 +190,11 @@ e2 leaderboard --type players  # 🏆 Leaderboards with colors
 # Raw JSON output (for scripts/automation)
 e2 trending --json
 e2 market --country AU --json
+
+# Rate limiting and monitoring commands
+e2 stats                 # 📊 Show usage statistics and efficiency
+e2 clear-cache          # 🗑️ Clear response cache
+e2 set-cache-ttl 600    # ⏱️ Set cache TTL (seconds)
 
 # Other commands
 e2 property <uuid>
@@ -297,6 +310,73 @@ client = Earth2Client(
     csrf_token='your-csrf-token'
 )
 ```
+
+## Bandwidth Protection Safeguards
+
+This wrapper includes comprehensive safeguards to prevent abuse and protect Earth2's bandwidth:
+
+### 🛡️ Multi-Tier Rate Limiting
+- **Per-endpoint limits**: Different limits for different API categories
+- **Global rate limiting**: 200 requests per minute maximum
+- **Burst protection**: Max 10 requests per 10 seconds
+- **Exponential backoff**: Automatic retry delays on errors
+
+### 📊 Usage Monitoring
+```bash
+# Check your usage statistics
+e2 stats
+```
+
+Example output:
+```
+📊 API Usage Statistics
+
+┌─────────────────┬─────────┐
+│ Metric          │ Value   │
+├─────────────────┼─────────┤
+│ Total Requests  │ 1,250   │
+│ Blocked Requests│ 15      │
+│ Current RPM     │ 45      │
+│ Cache Size      │ 234     │
+│ Efficiency      │ 98.8%   │
+└─────────────────┴─────────┘
+```
+
+### 💾 Smart Caching
+- **5-minute default TTL** for GET requests
+- **Automatic cache management** (max 1000 entries)
+- **Configurable cache duration**
+- **Significant bandwidth reduction**
+
+### ⚙️ Configuration Options
+
+#### Disable Rate Limiting (Not Recommended)
+```typescript
+// Node.js - Only for testing/development
+const client = new Earth2Client({ respectRateLimits: false });
+```
+
+```python
+# Python - Only for testing/development
+client = Earth2Client(respect_rate_limits=False)
+```
+
+#### Monitor and Configure
+```typescript
+// Node.js
+const stats = client.getRateLimitStats();
+client.clearCache();
+client.setCacheTtl(600000); // 10 minutes
+```
+
+```python
+# Python
+stats = client.get_rate_limit_stats()
+client.clear_cache()
+client.set_cache_ttl(600)  # 10 minutes
+```
+
+For detailed information about the safeguards, see [SAFEGUARDS.md](SAFEGUARDS.md).
 
 ## Advanced Usage
 

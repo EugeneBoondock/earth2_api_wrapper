@@ -309,6 +309,78 @@ program
     console.log(JSON.stringify(res, null, 2));
   });
 
+program
+  .command('stats')
+  .description('Show rate limiting and usage statistics')
+  .action(async () => {
+    const client = new Earth2Client({ cookieJar: process.env.E2_COOKIE, csrfToken: process.env.E2_CSRF });
+    const stats = client.getRateLimitStats();
+    
+    if ('rateLimiting' in stats && stats.rateLimiting === 'disabled') {
+      logInfo('Rate limiting is disabled for this client');
+      return;
+    }
+    
+    console.log(chalk.bold.blue('\n📊 API Usage Statistics\n'));
+    
+    // Type guard to ensure we have RateLimitStats
+    if ('totalRequests' in stats) {
+      const table = formatTable(
+        ['Metric', 'Value'],
+        [
+          ['Total Requests', formatNumber(stats.totalRequests || 0)],
+          ['Blocked Requests', formatNumber(stats.blockedRequests || 0)],
+          ['Current RPM', formatNumber(stats.currentRpm || 0)],
+          ['Cache Size', formatNumber(stats.cacheSize || 0)],
+          ['Efficiency', `${(stats.efficiency || 0).toFixed(1)}%`]
+        ]
+      );
+      
+      console.log(table);
+      
+      const errorCounts = stats.errorCounts || {};
+      const hasErrors = Object.values(errorCounts).some((count: number) => count > 0);
+      
+      if (hasErrors) {
+        console.log(chalk.bold.yellow('\n⚠️  Error Counts by Endpoint\n'));
+        
+        const errorTable = formatTable(
+          ['Endpoint Category', 'Error Count'],
+          Object.entries(errorCounts)
+            .filter(([, count]) => (count as number) > 0)
+            .map(([endpoint, count]) => [endpoint, formatNumber(count as number)])
+        );
+        
+        console.log(errorTable);
+      }
+    }
+  });
+
+program
+  .command('clear-cache')
+  .description('Clear the response cache')
+  .action(async () => {
+    const client = new Earth2Client({ cookieJar: process.env.E2_COOKIE, csrfToken: process.env.E2_CSRF });
+    client.clearCache();
+    logSuccess('Response cache cleared');
+  });
+
+program
+  .command('set-cache-ttl')
+  .description('Set cache time-to-live in milliseconds')
+  .argument('<ms>')
+  .action(async (ms) => {
+    const ttl = Number(ms);
+    if (isNaN(ttl) || ttl < 0) {
+      logError('Cache TTL must be a non-negative number');
+      process.exit(1);
+    }
+    
+    const client = new Earth2Client({ cookieJar: process.env.E2_COOKIE, csrfToken: process.env.E2_CSRF });
+    client.setCacheTtl(ttl);
+    logSuccess(`Cache TTL set to ${ttl} milliseconds`);
+  });
+
 program.parse(process.argv);
 
 

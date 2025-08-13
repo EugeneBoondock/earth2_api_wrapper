@@ -1,4 +1,5 @@
 import { LeaderboardQuery, MarketItemSimplified, MarketSearchQuery, ResourcesResponse, TrendingPlace, UserInfo, Favorite } from './types.js';
+import { getRateLimiter, RateLimiter, RateLimitStats } from './rateLimiter.js';
 
 type FetchLike = (url: string, init?: any) => Promise<any>;
 
@@ -6,11 +7,18 @@ export class Earth2Client {
   private fetchImpl: FetchLike;
   private cookieJar?: string;
   private csrfToken?: string;
+  private rateLimiter?: RateLimiter;
 
-  constructor(options?: { fetch?: FetchLike; cookieJar?: string; csrfToken?: string }) {
+  constructor(options?: { 
+    fetch?: FetchLike; 
+    cookieJar?: string; 
+    csrfToken?: string;
+    respectRateLimits?: boolean;
+  }) {
     this.fetchImpl = options?.fetch || fetch;
     this.cookieJar = options?.cookieJar;
     this.csrfToken = options?.csrfToken;
+    this.rateLimiter = (options?.respectRateLimits !== false) ? getRateLimiter() : undefined;
   }
 
   setCookieJar(jar: string | undefined) { this.cookieJar = jar; }
@@ -31,6 +39,17 @@ export class Earth2Client {
 
   // Authenticate with email/password using Earth2's Kinde OAuth flow
   async authenticate(email: string, password: string): Promise<{ success: boolean; message: string }> {
+    // Rate limit authentication attempts to prevent abuse
+    if (this.rateLimiter) {
+      const { canProceed, reason } = this.rateLimiter.canMakeRequest('https://app.earth2.io/login', 'POST');
+      if (!canProceed) {
+        return {
+          success: false,
+          message: `Authentication rate limited: ${reason}`
+        };
+      }
+    }
+
     try {
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
       let allCookies: string[] = [];
@@ -258,12 +277,20 @@ export class Earth2Client {
       // Store final cookies
       this.cookieJar = allCookies.join('; ');
       
+      if (this.rateLimiter) {
+        this.rateLimiter.recordRequest('https://app.earth2.io/login', 'POST');
+      }
+      
       return { 
         success: true, 
         message: 'Authentication successful! OAuth flow completed and cookies have been set.' 
       };
 
     } catch (error) {
+      if (this.rateLimiter) {
+        this.rateLimiter.recordError('https://app.earth2.io/login');
+      }
+      
       return { 
         success: false, 
         message: `Authentication error: ${error instanceof Error ? error.message : String(error)}` 
@@ -303,6 +330,18 @@ export class Earth2Client {
 
   // Public GET helper to r.earth2.io (session optional; many endpoints are public)
   private async getJson<T>(url: string, init?: any): Promise<T> {
+    if (this.rateLimiter) {
+      const { canProceed, reason, cachedResponse } = this.rateLimiter.canMakeRequest(url, 'GET');
+      
+      if (cachedResponse !== undefined) {
+        return cachedResponse as T;
+      }
+      
+      if (!canProceed) {
+        throw new Error(`Rate limit exceeded: ${reason}`);
+      }
+    }
+
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
       'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)'
@@ -313,16 +352,46 @@ export class Earth2Client {
       headers['X-XSRF-TOKEN'] = this.csrfToken;
       headers['X-CsrfToken'] = this.csrfToken;
     }
-    const res = await this.fetchImpl(url, { ...init, headers: { ...(init?.headers as any), ...headers }, method: 'GET' });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`GET ${url} failed: ${res.status} ${text?.slice(0, 200)}`);
+
+    try {
+      const res = await this.fetchImpl(url, { ...init, headers: { ...(init?.headers as any), ...headers }, method: 'GET' });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`GET ${url} failed: ${res.status} ${text?.slice(0, 200)}`);
+      }
+      
+      const result = await res.json() as T;
+      
+      if (this.rateLimiter) {
+        this.rateLimiter.recordRequest(url, 'GET');
+        this.rateLimiter.cacheResponseData(url, 'GET', result);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      if (this.rateLimiter) {
+        const statusCode = (error as any)?.response?.status;
+        this.rateLimiter.recordError(url, statusCode);
+      }
+      throw error;
     }
-    return res.json() as Promise<T>;
   }
 
   // Public GET that may return HTML; used by marketplace floor discovery
   private async getText(url: string): Promise<string> {
+    if (this.rateLimiter) {
+      const { canProceed, reason, cachedResponse } = this.rateLimiter.canMakeRequest(url, 'GET');
+      
+      if (cachedResponse !== undefined) {
+        return cachedResponse as string;
+      }
+      
+      if (!canProceed) {
+        throw new Error(`Rate limit exceeded: ${reason}`);
+      }
+    }
+
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
       'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)'
@@ -333,12 +402,30 @@ export class Earth2Client {
       headers['X-XSRF-TOKEN'] = this.csrfToken;
       headers['X-CsrfToken'] = this.csrfToken;
     }
-    const res = await this.fetchImpl(url, { headers });
-    if (!res.ok) {
-      const t = await res.text().catch(() => '');
-      throw new Error(`GET ${url} failed: ${res.status} ${t?.slice(0, 200)}`);
+
+    try {
+      const res = await this.fetchImpl(url, { headers });
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        throw new Error(`GET ${url} failed: ${res.status} ${t?.slice(0, 200)}`);
+      }
+      
+      const result = await res.text();
+      
+      if (this.rateLimiter) {
+        this.rateLimiter.recordRequest(url, 'GET');
+        this.rateLimiter.cacheResponseData(url, 'GET', result);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      if (this.rateLimiter) {
+        const statusCode = (error as any)?.response?.status;
+        this.rateLimiter.recordError(url, statusCode);
+      }
+      throw error;
     }
-    return res.text();
   }
 
   // Landing metrics
@@ -537,6 +624,26 @@ export class Earth2Client {
   // User favorites (requires auth)
   async getMyFavorites(): Promise<{ data: Favorite[] }> {
     return this.getJson('https://r.earth2.io/api/v2/my/favorites');
+  }
+
+  // Rate limiting utilities
+  getRateLimitStats(): RateLimitStats | { rateLimiting: string } {
+    if (!this.rateLimiter) {
+      return { rateLimiting: 'disabled' };
+    }
+    return this.rateLimiter.getStats();
+  }
+
+  clearCache(): void {
+    if (this.rateLimiter) {
+      this.rateLimiter.clearCache();
+    }
+  }
+
+  setCacheTtl(ms: number): void {
+    if (this.rateLimiter) {
+      this.rateLimiter.setCacheTtl(ms);
+    }
   }
 }
 
