@@ -410,9 +410,15 @@ class Earth2Client:
         return self._get_json(f"https://app.earth2.io/api/v2/user_info/{user_id}")
 
     def get_users(self, user_ids: List[str]) -> Dict[str, Any]:
-        """Get multiple users by IDs"""
-        user_ids_str = "&".join(f"ids={user_id}" for user_id in user_ids)
-        return self._get_json(f"https://app.earth2.io/users?{user_ids_str}")
+        """Get multiple users by IDs (aggregate single-user endpoint)"""
+        aggregated: List[Dict[str, Any]] = []
+        for uid in user_ids:
+            try:
+                aggregated.append(self.get_user_info(uid))
+            except Exception:
+                # Skip invalid/unknown ids
+                pass
+        return {"data": aggregated}
 
     def get_resources(self, property_id: str) -> Dict[str, Any]:
         """Get property resources by ID"""

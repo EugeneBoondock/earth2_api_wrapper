@@ -520,9 +520,18 @@ export class Earth2Client {
 
   // Bulk user info
   async getUsers(userIds: string[]): Promise<{ data: UserInfo[] }> {
-    const params = new URLSearchParams();
-    userIds.forEach(id => params.append('ids', id));
-    return this.getJson(`https://app.earth2.io/users?${params.toString()}`);
+    // Fallback: endpoint for multiple users returns 404; aggregate single-user calls
+    const results: UserInfo[] = [] as any;
+    for (const userId of userIds) {
+      try {
+        const user = await this.getUserInfo(userId as string);
+        // getUserInfo returns the user object directly
+        results.push(user as unknown as UserInfo);
+      } catch {
+        // Skip invalid IDs
+      }
+    }
+    return { data: results };
   }
 
   // User favorites (requires auth)
