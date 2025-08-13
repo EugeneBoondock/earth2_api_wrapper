@@ -8,7 +8,7 @@ const program = new Command();
 program
   .name('e2')
   .description('Earth2 API CLI (unofficial)')
-  .version('0.1.0');
+  .version('0.2.0');
 
 // Helper functions for formatting
 function formatTable(headers: string[], rows: any[][]): string {

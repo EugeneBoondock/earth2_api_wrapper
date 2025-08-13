@@ -309,7 +309,7 @@ export class Earth2Client {
       const testResponse = await this.fetchImpl('https://r.earth2.io/avatar_sales?page=1&perPage=12', {
         method: 'GET',
         headers: {
-          'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)',
+          'User-Agent': 'earth2-api-wrapper/0.2.0 (+https://npmjs.com/package/earth2-api-wrapper)',
           'Accept': 'application/json, text/plain, */*',
           'Cookie': this.cookieJar,
           'Referer': 'https://app.earth2.io/',
@@ -344,7 +344,7 @@ export class Earth2Client {
 
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
-      'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)'
+      'User-Agent': 'earth2-api-wrapper/0.2.0 (+https://npmjs.com/package/earth2-api-wrapper)'
     };
     if (this.cookieJar) headers['Cookie'] = this.cookieJar;
     if (this.csrfToken) {
@@ -394,7 +394,7 @@ export class Earth2Client {
 
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain, */*',
-      'User-Agent': 'earth2-api-wrapper/0.1 (+https://npmjs.com/package/earth2-api-wrapper)'
+      'User-Agent': 'earth2-api-wrapper/0.2.0 (+https://npmjs.com/package/earth2-api-wrapper)'
     };
     if (this.cookieJar) headers['Cookie'] = this.cookieJar;
     if (this.csrfToken) {

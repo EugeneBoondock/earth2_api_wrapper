@@ -330,36 +330,36 @@ def stats():
     """Show rate limiting and usage statistics"""
     client = _client_from_env()
     stats = client.get_rate_limit_stats()
-    
+
     if stats.get("rate_limiting") == "disabled":
         log_info("Rate limiting is disabled for this client")
         return
-    
+
     console.print("\n📊 [bold blue]API Usage Statistics[/bold blue]\n")
-    
+
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Metric")
     table.add_column("Value")
-    
+
     table.add_row("Total Requests", format_number(stats.get("total_requests", 0)))
     table.add_row("Blocked Requests", format_number(stats.get("blocked_requests", 0)))
     table.add_row("Current RPM", format_number(stats.get("current_rpm", 0)))
     table.add_row("Cache Size", format_number(stats.get("cache_size", 0)))
     table.add_row("Efficiency", f"{stats.get('efficiency', 0):.1f}%")
-    
+
     console.print(table)
-    
+
     error_counts = stats.get("error_counts", {})
     if error_counts:
         console.print("\n⚠️  [bold yellow]Error Counts by Endpoint[/bold yellow]\n")
         error_table = Table(show_header=True, header_style="bold yellow")
         error_table.add_column("Endpoint Category")
         error_table.add_column("Error Count")
-        
+
         for endpoint, count in error_counts.items():
             if count > 0:
                 error_table.add_row(endpoint, format_number(count))
-        
+
         console.print(error_table)
 
 
@@ -377,7 +377,7 @@ def set_cache_ttl(seconds: int = typer.Argument(..., help="Cache TTL in seconds"
     if seconds < 0:
         log_error("Cache TTL must be non-negative")
         raise typer.Exit(1)
-    
+
     client = _client_from_env()
     client.set_cache_ttl(seconds)
     log_success(f"Cache TTL set to {seconds} seconds")

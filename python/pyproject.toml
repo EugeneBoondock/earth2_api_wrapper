@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "earth2-api-wrapper"
-version = "0.1.0"
-description = "Unofficial Earth2 API wrapper with CLI (Python). Read-only operations."
+version = "0.2.0"
+description = "Unofficial Earth2 API wrapper with CLI (Python). Includes comprehensive safeguards to protect Earth2's bandwidth."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "" }]
 keywords = ["earth2", "api", "wrapper"]
 dependencies = [

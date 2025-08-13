@@ -1,7 +1,7 @@
 {
   "name": "earth2-api-wrapper",
-  "version": "0.1.0",
-  "description": "Unofficial Earth2 API wrapper with CLI (Node.js). Excludes raiding/dispensing/charging/jewel/civilian automation.",
+  "version": "0.2.0",
+  "description": "Unofficial Earth2 API wrapper with CLI (Node.js). Includes comprehensive safeguards to protect Earth2's bandwidth.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
