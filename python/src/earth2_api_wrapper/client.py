@@ -45,7 +45,13 @@ class Earth2Client:
         return url
 
     def authenticate(self, email: str, password: str) -> Dict[str, Any]:
-        """Authenticate with email/password using Earth2's Kinde OAuth flow"""
+        """
+        Authenticate with email/password using Earth2's Kinde OAuth flow.
+
+        WARNING: This method does NOT support TOTP/2FA authentication.
+        If your account has 2FA enabled, this will fail. Use manual cookie
+        extraction instead (see documentation).
+        """
         # Rate limit authentication attempts to prevent abuse
         if self._rate_limiter:
             can_proceed, reason, _ = self._rate_limiter.can_make_request('https://app.earth2.io/login', 'POST')

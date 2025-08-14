@@ -38,6 +38,8 @@ export class Earth2Client {
   }
 
   // Authenticate with email/password using Earth2's Kinde OAuth flow
+  // WARNING: This method does NOT support TOTP/2FA authentication.
+  // If your account has 2FA enabled, this will fail. Use manual cookie extraction instead.
   async authenticate(email: string, password: string): Promise<{ success: boolean; message: string }> {
     // Rate limit authentication attempts to prevent abuse
     if (this.rateLimiter) {

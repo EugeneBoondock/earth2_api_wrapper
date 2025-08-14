@@ -161,6 +161,8 @@ The wrapper provides detailed statistics to help monitor usage:
 - Prevents credential stuffing attacks
 - Protects both Earth2 and users
 
+**Important**: Authentication only supports basic email/password. 2FA/TOTP is not supported.
+
 ### Request Validation
 - URL validation and sanitization
 - Method validation

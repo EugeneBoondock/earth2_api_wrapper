@@ -18,10 +18,27 @@ Unofficial Earth2 API wrapper library and CLI tools for Node.js/TypeScript and P
 - 🏠 **Property Information**: Get detailed property and resource data
 - 👤 **User Data**: Fetch public user information and profiles
 - 🎮 **Avatar Sales**: Track recent avatar skin sales
-- 🔐 **Authentication Support**: Optional cookie/CSRF token authentication for private data
+- 🔐 **Authentication Support**: Optional cookie/CSRF token authentication for private data (⚠️ No 2FA/TOTP support)
 - 🛡️ **Built-in Safeguards**: Comprehensive rate limiting and abuse prevention to protect Earth2's bandwidth
 - 📈 **Usage Monitoring**: Real-time statistics and efficiency tracking
 - 💾 **Smart Caching**: Intelligent response caching to reduce API load
+
+## Important Limitations
+
+### 🚫 No 2FA/TOTP Support
+This wrapper **does not support Two-Factor Authentication (2FA) or TOTP**. The authentication methods only work with accounts that use basic email/password authentication. If your Earth2 account has 2FA enabled:
+
+- ❌ `e2 login` command will fail
+- ❌ Programmatic `authenticate()` method will fail  
+- ✅ Manual cookie extraction still works (see Authentication section)
+- ✅ All public endpoints work without authentication
+
+### 🔒 Read-Only Operations
+This wrapper only provides read-only access to Earth2's APIs. It excludes any automation for:
+- Raiding, dispensing, charging
+- Jewel management
+- Civilian operations
+- Any game mechanics that could affect gameplay
 
 ## API Endpoints Covered
 
@@ -211,9 +228,14 @@ e2 my-favorites  # Requires auth
 
 The wrapper provides multiple ways to authenticate with Earth2 for accessing private endpoints like favorites.
 
-### Method 1: CLI Login (Recommended)
+> **⚠️ Important Limitation**: This wrapper currently **does NOT support TOTP/2FA authentication**. It only supports basic email/password authentication. If your Earth2 account has Two-Factor Authentication (2FA) or TOTP enabled, the authentication will fail. You'll need to either:
+> - Temporarily disable 2FA on your Earth2 account (not recommended for security)
+> - Use manual cookie extraction (Method 3 below)
+> - Use the wrapper only for public endpoints that don't require authentication
 
-The wrapper handles Earth2's complex Kinde OAuth authentication flow automatically:
+### Method 1: CLI Login (Recommended - Email/Password Only)
+
+The wrapper handles Earth2's complex Kinde OAuth authentication flow automatically for accounts **without 2FA**:
 
 ```bash
 # Interactive login with OAuth flow
@@ -237,9 +259,9 @@ e2 my-favorites
 e2 check-session  # Verify your session is still valid
 ```
 
-### Method 2: Programmatic Authentication
+### Method 2: Programmatic Authentication (Email/Password Only)
 
-The wrapper automatically handles the complex OAuth flow programmatically:
+The wrapper automatically handles the complex OAuth flow programmatically for accounts **without 2FA**:
 
 #### Node.js
 ```typescript
@@ -285,9 +307,9 @@ else:
     print('✗ OAuth authentication failed:', result['message'])
 ```
 
-### Method 3: Manual Cookie/Token Setup
+### Method 3: Manual Cookie/Token Setup (Recommended for 2FA Accounts)
 
-If you already have session cookies and CSRF tokens:
+If you already have session cookies and CSRF tokens, or if your account has 2FA enabled:
 
 #### Environment Variables
 ```bash
@@ -310,6 +332,28 @@ client = Earth2Client(
     cookie_jar='your-cookie-string',
     csrf_token='your-csrf-token'
 )
+```
+
+#### Extracting Cookies for 2FA Accounts
+
+If your Earth2 account has 2FA/TOTP enabled, you'll need to manually extract cookies:
+
+1. **Login to Earth2 manually** in your browser with 2FA
+2. **Open Developer Tools** (F12)
+3. **Go to Application/Storage tab** → Cookies → `https://app.earth2.io`
+4. **Copy relevant cookies** (look for session-related cookies)
+5. **Find CSRF token** in:
+   - Network tab → any API request → Request Headers → look for `X-CSRF-TOKEN`
+   - Or in page source → search for `csrf` or `token`
+
+Example cookie extraction:
+```bash
+# Set environment variables with extracted values
+export E2_COOKIE="session_id=abc123; auth_token=xyz789; other_cookies=..."
+export E2_CSRF="your-csrf-token-here"
+
+# Now use the CLI
+e2 my-favorites
 ```
 
 ## Bandwidth Protection Safeguards
@@ -496,7 +540,42 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Disclaimer
 
-This is an unofficial API wrapper and is not affiliated with Earth2. Use at your own risk. The wrapper only provides read-only access to public APIs and does not include any automation features for game mechanics.
+This is an unofficial API wrapper and is not affiliated with Earth2. Use at your own risk. 
+
+**Important limitations:**
+- Only provides read-only access to public APIs
+- Does not include automation features for game mechanics
+- **Does NOT support 2FA/TOTP authentication** - only basic email/password
+- Authentication may fail if Earth2 changes their OAuth flow
+
+## Troubleshooting
+
+### Authentication Issues
+
+**Problem**: `e2 login` fails or `authenticate()` method returns error
+
+**Common causes:**
+1. **2FA/TOTP enabled**: This wrapper does NOT support 2FA
+   - **Solution**: Use manual cookie extraction (Method 3 above)
+   
+2. **Incorrect credentials**: Double-check email and password
+   - **Solution**: Verify credentials by logging into Earth2 website manually
+   
+3. **Earth2 OAuth changes**: Earth2 may have updated their authentication flow
+   - **Solution**: Use manual cookie extraction as a workaround
+
+**Problem**: "Rate limit exceeded" during authentication
+
+**Solution**: The wrapper limits authentication attempts to prevent abuse. Wait a few minutes and try again.
+
+### General Issues
+
+**Problem**: API requests fail with 401/403 errors
+
+**Solution**: 
+1. Check if your session is still valid: `e2 check-session`
+2. Re-authenticate if needed
+3. For 2FA accounts, extract fresh cookies
 
 ## Support
 
@@ -505,6 +584,7 @@ If you encounter any issues or have questions:
 1. Check the [Issues](https://github.com/EugeneBoondock/earth2_api_wrapper/issues) page
 2. Create a new issue with detailed information about your problem
 3. Include code examples and error messages when applicable
+4. **For authentication issues**: Specify if your account has 2FA enabled
 
 ---
 

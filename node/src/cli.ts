@@ -42,7 +42,7 @@ function logInfo(message: string): void {
 
 program
   .command('login')
-  .description('Authenticate with Earth2 using Kinde OAuth flow')
+  .description('Authenticate with Earth2 using Kinde OAuth flow (does NOT support 2FA/TOTP)')
   .option('-e, --email <email>', 'Email address')
   .option('-p, --password <password>', 'Password')
   .action(async (opts) => {
@@ -76,6 +76,7 @@ program
     } else {
       logError(result.message);
       logError('OAuth authentication failed. Please check your credentials and try again.');
+      logInfo('Note: This command does NOT support 2FA/TOTP. Use manual cookie extraction if you have 2FA enabled.');
       process.exit(1);
     }
   });

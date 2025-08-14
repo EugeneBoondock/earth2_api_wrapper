@@ -74,7 +74,7 @@ def login(
         None, "--password", "-p", help="Password", hide_input=True
     )
 ):
-    """Authenticate with Earth2 using Kinde OAuth flow"""
+    """Authenticate with Earth2 using Kinde OAuth flow (does NOT support 2FA/TOTP)"""
     client = Earth2Client()
 
     email = email or os.getenv("E2_EMAIL")
@@ -85,6 +85,7 @@ def login(
             "Email and password are required. Use --email and --password or set "
             "E2_EMAIL and E2_PASSWORD environment variables."
         )
+        log_info("Note: This command does NOT support 2FA/TOTP. Use manual cookie extraction if you have 2FA enabled.")
         raise typer.Exit(1)
 
     log_info("Starting Earth2 Kinde OAuth authentication flow...")
@@ -107,6 +108,7 @@ def login(
     else:
         log_error(result["message"])
         log_error("OAuth authentication failed. Please check your credentials and try again.")
+        log_info("Note: This command does NOT support 2FA/TOTP. Use manual cookie extraction if you have 2FA enabled.")
         raise typer.Exit(1)
 
 

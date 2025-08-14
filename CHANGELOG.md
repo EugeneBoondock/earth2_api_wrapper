@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code Quality**: All flake8 linting issues resolved
 - **Import Optimization**: Removed unused imports for cleaner code
 
+### Documentation
+- **Authentication Limitations**: Clearly documented that 2FA/TOTP is NOT supported
+- **Troubleshooting Guide**: Added comprehensive authentication troubleshooting
+- **Manual Cookie Extraction**: Detailed guide for 2FA account users
+- **CLI Help Updates**: Updated command descriptions to mention 2FA limitation
+
 ## [0.2.0] - 2025-01-13
 
 ### Added
